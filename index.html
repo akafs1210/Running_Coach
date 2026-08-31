@@ -1622,7 +1622,7 @@ function renderFortschritt() {
 function drawWeightChart() {
   const canvas = document.getElementById('chart-weight');
   if (!canvas) return;
-  const weights = DATA.entries.filter(e => e.type==='gewicht' && e.kg)
+  const weights = DATA.entries.filter(e => e.type==='gewicht' && e.kg && e.yr === statsYear)
     .sort((a,b) => a.date.localeCompare(b.date))
     .map(e => ({ d: fmtDate(e.date).slice(0,5), v: parseFloat(e.kg) }));
 
@@ -1633,14 +1633,16 @@ function drawRunChart() {
   const canvas = document.getElementById('chart-run');
   if (!canvas) return;
   const byWeek = {};
-  DATA.entries.filter(e => ['longrun','threshold','interval','z2'].includes(e.type) && e.km).forEach(e => {
+  DATA.entries.filter(e => ['longrun','threshold','interval','z2'].includes(e.type) && e.km && e.yr === statsYear).forEach(e => {
     const key = `${e.yr}-${String(e.kw).padStart(2,'0')}`;
     byWeek[key] = (byWeek[key]||0) + parseFloat(e.km);
   });
   const planByWeek = {};
   PLAN.forEach(p => {
-    const key = `${p.yr}-${String(p.kw).padStart(2,'0')}`;
-    planByWeek[key] = p.lauf;
+    if (p.yr === statsYear) {
+      const key = `${p.yr}-${String(p.kw).padStart(2,'0')}`;
+      planByWeek[key] = p.lauf;
+    }
   });
 
   const keys = Object.keys(byWeek).sort();
@@ -1652,7 +1654,7 @@ function drawRideChart() {
   const canvas = document.getElementById('chart-ride');
   if (!canvas) return;
   const byWeek = {};
-  DATA.entries.filter(e => ['rennrad','mtb','ebike'].includes(e.type) && e.km).forEach(e => {
+  DATA.entries.filter(e => ['rennrad','mtb','ebike'].includes(e.type) && e.km && e.yr === statsYear).forEach(e => {
     const key = `${e.yr}-${String(e.kw).padStart(2,'0')}`;
     byWeek[key] = (byWeek[key]||0) + parseFloat(e.km);
   });
