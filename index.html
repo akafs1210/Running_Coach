@@ -1328,6 +1328,158 @@ function deleteEntry(id) {
 }
 
 // ── FORTSCHRITT TAB ────────────────────────────────────────
+function exportKWText() {
+  const RUN_TYPES  = ['longrun','threshold','interval','z2'];
+  const RIDE_TYPES = ['rennrad','mtb','ebike'];
+  const KRAFT_TYPES = ['kraft_a','kraft_b','kraft_manuell'];
+  const OTHER_TYPES = ['wandern','schwimmen','surfen'];
+
+  const TYPE_LABEL = {
+    longrun:'Longrun', threshold:'Threshold', interval:'Intervall', z2:'Z2-Lauf',
+    rennrad:'Rennrad', mtb:'MTB', ebike:'E-Bike',
+    kraft_a:'Kraft A', kraft_b:'Kraft B', kraft_manuell:'Kraft Manuell',
+    wandern:'Wandern', schwimmen:'Schwimmen', surfen:'Surfen', gewicht:'Gewicht'
+  };
+
+  // Alle Wochen sammeln (außer gewicht-only)
+  const kwMap = {};
+  DATA.entries.forEach(e => {
+    if (!e.date || e.type === 'gewicht') return;
+    const key = `${e.yr}-${String(e.kw).padStart(2,'0')}`;
+    if (!kwMap[key]) kwMap[key] = {kw: e.kw, yr: e.yr, entries: []};
+    kwMap[key].entries.push(e);
+  });
+
+  // Gewichtsdaten für durchschnitt pro KW
+  const weightByKW = {};
+  DATA.entries.filter(e => e.type === 'gewicht' && e.kg).forEach(e => {
+    const key = `${e.yr}-${String(e.kw).padStart(2,'0')}`;
+    if (!weightByKW[key]) weightByKW[key] = [];
+    weightByKW[key].push(parseFloat(e.kg));
+  });
+
+  const planByKW = {};
+  PLAN.forEach(p => {
+    const key = `${p.yr}-${String(p.kw).padStart(2,'0')}`;
+    planByKW[key] = p;
+  });
+
+  const sortedKeys = Object.keys(kwMap).sort();
+  const lines = [];
+  lines.push('TRAININGSÜBERSICHT – KW-EXPORT');
+  lines.push(`Erstellt: ${new Date().toLocaleDateString('de-AT')} ${new Date().toLocaleTimeString('de-AT', {hour:'2-digit',minute:'2-digit'})}`);
+  lines.push('='.repeat(60));
+  lines.push('');
+
+  sortedKeys.forEach(key => {
+    const {kw, yr, entries} = kwMap[key];
+    const plan = planByKW[key] || {};
+
+    const runs  = entries.filter(e => RUN_TYPES.includes(e.type));
+    const rides = entries.filter(e => RIDE_TYPES.includes(e.type));
+    const kraft = entries.filter(e => KRAFT_TYPES.includes(e.type));
+    const other = entries.filter(e => OTHER_TYPES.includes(e.type));
+
+    const runKm  = runs.reduce((s,e) => s+(parseFloat(e.km)||0), 0);
+    const rideKm = rides.reduce((s,e) => s+(parseFloat(e.km)||0), 0);
+    const wArr   = weightByKW[key] || [];
+    const wAvg   = wArr.length ? (wArr.reduce((a,b)=>a+b,0)/wArr.length).toFixed(1) : '–';
+
+    lines.push(`── KW ${String(kw).padStart(2,'0')} / ${yr} ${'─'.repeat(44)}`);
+
+    // Zusammenfassung
+    const sumParts = [];
+    if (runKm > 0) sumParts.push(`Lauf: ${runKm.toFixed(1)} km${plan.lauf ? ' / Ziel: '+plan.lauf+' km' : ''}`);
+    if (rideKm > 0) sumParts.push(`Rad: ${rideKm.toFixed(1)} km${plan.rad ? ' / Ziel: '+plan.rad+' km' : ''}`);
+    if (kraft.length > 0) sumParts.push(`Kraft: ${kraft.length}x`);
+    if (other.length > 0) sumParts.push(other.map(e => TYPE_LABEL[e.type]||e.type).join(', '));
+    if (wAvg !== '–') sumParts.push(`Gewicht Ø: ${wAvg} kg`);
+    lines.push('  ' + (sumParts.join('  |  ') || 'Keine Einträge'));
+    lines.push('');
+
+    // Einzeleinträge
+    const allEntries = [...runs, ...rides, ...kraft, ...other].sort((a,b) => a.date.localeCompare(b.date));
+    allEntries.forEach(e => {
+      const label = TYPE_LABEL[e.type] || e.type;
+      const date  = fmtDate(e.date);
+      let detail  = '';
+
+      if (RUN_TYPES.includes(e.type)) {
+        const km  = e.km ? `${parseFloat(e.km).toFixed(2)} km` : '';
+        const dur = e.timeMin ? fmtDuration(e.timeMin) : '';
+        const hr  = e.hrAvg ? `Ø${e.hrAvg} bpm` : '';
+        const pace = e.pace || '';
+        detail = [km, dur, hr, pace].filter(Boolean).join('  ');
+      } else if (RIDE_TYPES.includes(e.type)) {
+        const km  = e.km ? `${parseFloat(e.km).toFixed(2)} km` : '';
+        const dur = e.timeMin ? fmtDuration(e.timeMin) : '';
+        const hr  = e.hrAvg ? `Ø${e.hrAvg} bpm` : '';
+        const elev = e.elevation ? `↑${e.elevation}m` : '';
+        detail = [km, dur, hr, elev].filter(Boolean).join('  ');
+      } else if (KRAFT_TYPES.includes(e.type)) {
+        const kgw = e.kgw ? `KGW: ${e.kgw} kg` : '';
+        const feel = e.feeling ? `Gefühl: ${e.feeling}/10` : '';
+        const exList = (e.exercises||[]).map(ex => {
+          const sets = (ex.sets||[]).map((s,i) => {
+            const kg   = s.kg   ?? s.v1 ?? '';
+            const reps = s.reps ?? s.v2 ?? '';
+            if (kg && reps) return `S${i+1}: ${kg}kg×${reps}`;
+            if (kg)         return `S${i+1}: ${kg}`;
+            if (reps)       return `S${i+1}: ${reps}`;
+            return '';
+          }).filter(Boolean).join(' ');
+          return `      ${ex.name}: ${sets}`;
+        }).join('\n');
+        detail = [kgw, feel].filter(Boolean).join('  ');
+        if (detail) lines.push(`  ${date}  ${label}  ${detail}`);
+        else        lines.push(`  ${date}  ${label}`);
+        if (exList) lines.push(exList);
+        if (e.notes) lines.push(`      Notiz: ${e.notes}`);
+        return;
+      } else {
+        const km = e.km ? `${parseFloat(e.km).toFixed(2)} km` : '';
+        const dur = e.timeMin ? fmtDuration(e.timeMin) : '';
+        detail = [km, dur].filter(Boolean).join('  ');
+      }
+
+      lines.push(`  ${date}  ${label.padEnd(14)}  ${detail}`);
+      if (e.notes) lines.push(`      Notiz: ${e.notes}`);
+    });
+
+    // Gewichtsmessungen der Woche
+    if (wArr.length > 0) {
+      const wEntries = DATA.entries.filter(e => e.type==='gewicht' && e.kg &&
+        `${e.yr}-${String(e.kw).padStart(2,'0')}` === key).sort((a,b) => a.date.localeCompare(b.date));
+      wEntries.forEach(e => lines.push(`  ${fmtDate(e.date)}  Gewicht         ${parseFloat(e.kg).toFixed(1)} kg`));
+    }
+
+    lines.push('');
+  });
+
+  // Gesamtstatistik
+  lines.push('='.repeat(60));
+  lines.push('GESAMTSTATISTIK');
+  lines.push('='.repeat(60));
+  const totalRunKm  = DATA.entries.filter(e => RUN_TYPES.includes(e.type)).reduce((s,e) => s+(parseFloat(e.km)||0), 0);
+  const totalRideKm = DATA.entries.filter(e => RIDE_TYPES.includes(e.type)).reduce((s,e) => s+(parseFloat(e.km)||0), 0);
+  const totalKraft  = DATA.entries.filter(e => KRAFT_TYPES.includes(e.type)).length;
+  lines.push(`Lauf-km gesamt:  ${totalRunKm.toFixed(1)} km`);
+  lines.push(`Rad-km gesamt:   ${totalRideKm.toFixed(1)} km`);
+  lines.push(`Kraft-Einheiten: ${totalKraft}`);
+  lines.push(`KWs im Export:   ${sortedKeys.length}`);
+  lines.push('');
+
+  const blob = new Blob([lines.join('\n')], {type:'text/plain;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `training_export_${new Date().toISOString().slice(0,10)}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function renderFortschritt() {
   const weights = DATA.entries.filter(e => e.type === 'gewicht' && e.kg).sort((a,b)=>a.date.localeCompare(b.date));
   const latestW = weights.length ? parseFloat(weights[weights.length-1].kg) : 80;
@@ -1400,7 +1552,10 @@ function renderFortschritt() {
       ).join('') || '<div style="color:var(--text3);font-size:14px">Noch keine Kraftdaten.</div>'}
     </div>
 
-    <div style="text-align:center;padding:16px">
+    <div style="display:flex;gap:10px;justify-content:center;padding:16px;flex-wrap:wrap">
+      <button onclick="exportKWText()" style="font-size:14px;padding:12px 24px">
+        Export KW-Übersicht
+      </button>
       <button onclick="switchTab('settings',document.getElementById('btn-settings'))" style="font-size:14px;padding:12px 24px">
         ⚙ Einstellungen öffnen
       </button>
