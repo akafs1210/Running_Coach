@@ -435,16 +435,74 @@ function kfRemoveEx(idx) {
   rerenderKfList();
 }
 
-function kfAddEx() {
+function kfToggleExSearch() {
+  const panel = document.getElementById('kf-search-panel');
+  if (!panel) return;
+  const showing = panel.style.display !== 'none';
+  panel.style.display = showing ? 'none' : 'block';
+  if (!showing) setTimeout(() => document.getElementById('kf-search-input')?.focus(), 50);
+}
+
+function _kfUpdateSearch(q) {
+  const el = document.getElementById('kf-search-results');
+  if (!el) return;
+  const qOrig = document.getElementById('kf-search-input')?.value?.trim() || q;
+  q = q.trim().toLowerCase();
+  if (!q) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  const matches = EXERCISE_DB.filter(e =>
+    e.name.toLowerCase().includes(q) || e.cat.toLowerCase().includes(q) ||
+    (q === 'kb' && e.cat === 'Kettlebell')
+  ).slice(0, 14);
+  const items = matches.map(e =>
+    `<div onclick="kfAddExFromDB('${e.name.replace(/'/g,"\\'")}','${e.unit}')"
+      style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px;display:flex;justify-content:space-between;align-items:center"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <span><strong>${e.name}</strong><span style="color:var(--text3);font-size:11px;margin-left:6px">${e.cat}</span></span>
+      <span style="font-size:11px;color:var(--text3)">${e.unit}</span>
+    </div>`
+  );
+  if (qOrig && !EXERCISE_DB.some(e => e.name.toLowerCase() === qOrig.toLowerCase())) {
+    items.push(`<div onclick="kfAddExFromDB('${qOrig.replace(/'/g,"\\'")}','kg/Wdh')"
+      style="padding:10px 12px;cursor:pointer;font-size:14px;color:var(--accent)"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      ＋ "${qOrig}" als eigene Übung
+    </div>`);
+  }
+  el.innerHTML = items.join('') || `<div style="padding:10px 12px;font-size:14px;color:var(--text3)">Keine Treffer</div>
+    <div onclick="kfAddExFromDB('${qOrig.replace(/'/g,"\\'")}','kg/Wdh')"
+      style="padding:10px 12px;cursor:pointer;font-size:14px;color:var(--accent)"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      ＋ "${qOrig}" als eigene Übung
+    </div>`;
+  el.style.display = 'block';
+}
+
+function kfAddExFromDB(name, unit) {
   collectKfValues();
-  kfState.exercises.push({ id: uid(), name: 'Neue Übung', unit: 'kg/Wdh', prevSets: [], currentSets: [] });
+  kfState.exercises.push({ id: uid(), name, unit: unit || 'kg/Wdh', prevSets: [], currentSets: [] });
   rerenderKfList();
+  const panel = document.getElementById('kf-search-panel');
+  if (panel) panel.style.display = 'none';
+  const input = document.getElementById('kf-search-input');
+  if (input) input.value = '';
+  const results = document.getElementById('kf-search-results');
+  if (results) results.style.display = 'none';
   setTimeout(() => {
     const last = document.getElementById('kf-ex-' + (kfState.exercises.length - 1));
     if (last) last.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    const nameInput = document.getElementById('exname' + (kfState.exercises.length - 1));
-    if (nameInput) { nameInput.select(); }
   }, 50);
+}
+
+function kfExAddPanelHTML() {
+  return `<button onclick="kfToggleExSearch()" style="width:100%;margin:10px 0 0;padding:12px;font-size:14px;border:2px dashed var(--border);background:transparent;color:var(--text2);border-radius:10px;cursor:pointer">+ Übung hinzufügen</button>
+  <div id="kf-search-panel" style="display:none;position:relative;margin-top:6px;margin-bottom:4px">
+    <input type="text" id="kf-search-input" placeholder="Übung suchen (z.B. KB Swings, Squat…)"
+      oninput="_kfUpdateSearch(this.value)"
+      onblur="setTimeout(()=>{const r=document.getElementById('kf-search-results');if(r)r.style.display='none'},200)"
+      onfocus="if(this.value)_kfUpdateSearch(this.value)"
+      autocomplete="off">
+    <div id="kf-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg1);border:1px solid var(--border);border-radius:10px;z-index:200;max-height:260px;overflow-y:auto;margin-top:4px;box-shadow:0 4px 16px rgba(0,0,0,.5)"></div>
+  </div>`;
 }
 
 function saveKraftNew() {
@@ -522,7 +580,7 @@ function openKraftEdit(id) {
         <div class="form-group"><label>Körpergewicht (kg)</label><input type="number" inputmode="decimal" id="k-kgw" placeholder="80" value="${entry.kgw||''}"></div>
       </div>
       <div id="kf-ex-list">${renderKfExRows()}</div>
-      <button onclick="kfAddEx()" style="width:100%;margin:10px 0 4px;padding:12px;font-size:14px;border:2px dashed var(--border);background:transparent;color:var(--text2);border-radius:10px;cursor:pointer">+ Übung hinzufügen</button>
+      ${kfExAddPanelHTML()}
       <div class="form-group" style="margin-top:12px">
         <label>Gefühl (1–10)</label>
         <div class="feeling-row" id="feeling-row">${feelingBtns}</div>
@@ -960,6 +1018,27 @@ const EXERCISE_DB = [
   {cat:'Functional',name:'Box Jumps',unit:'Wdh'},
   {cat:'Functional',name:'Burpees',unit:'Wdh'},
   {cat:'Functional',name:'Jumping Jacks',unit:'Wdh'},
+  // Kettlebell
+  {cat:'Kettlebell',name:'KB Swings (Zweiarmig)',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Swings (Einarmig)',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Turkish Get-Up',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Goblet Squat',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Clean',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Snatch',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Overhead Press',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Push Press',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Windmill',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Halos',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Suitcase Carry',unit:'kg/m'},
+  {cat:'Kettlebell',name:'KB Bottoms-Up Press',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Sumo Deadlift High Pull',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Thruster',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Row',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Figure 8',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Bicep Curls',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Hammer Curls',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Preacher Curls',unit:'kg/Wdh'},
+  {cat:'Kettlebell',name:'KB Konzentrationscurls',unit:'kg/Wdh'},
   // HIIT / Ausdauer
   {cat:'HIIT',name:'HIIT: Ski Erg 3×250m',unit:'Sek/Runde'},
   {cat:'HIIT',name:'HIIT: Row 3×250m',unit:'Sek/Runde'},
@@ -1149,7 +1228,7 @@ function renderKraftForm(type, plan) {
       <div class="form-group"><label>Körpergewicht (kg)</label><input type="number" inputmode="decimal" id="k-kgw" placeholder="80"></div>
     </div>
     <div id="kf-ex-list">${renderKfExRows()}</div>
-    <button onclick="kfAddEx()" style="width:100%;margin:10px 0 4px;padding:12px;font-size:14px;border:2px dashed var(--border);background:transparent;color:var(--text2);border-radius:10px;cursor:pointer">+ Übung hinzufügen</button>
+    ${kfExAddPanelHTML()}
     <div class="form-group" style="margin-top:12px">
       <label>Gefühl (1–10)</label>
       <div class="feeling-row" id="feeling-row">${feelingBtns}</div>
