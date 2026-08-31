@@ -289,8 +289,13 @@ function calcPace(km, min) {
 }
 
 // ── EXERCISES ──────────────────────────────────────────────
-function getExA() { return DATA.settings.customExA || EX_A; }
-function getExB() { return DATA.settings.customExB || EX_B; }
+function dedupEx(list) {
+  const seen = new Set();
+  return list.filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; });
+}
+function getExA() { return dedupEx(DATA.settings.customExA || EX_A); }
+function getExB() { return dedupEx(DATA.settings.customExB || EX_B); }
+function isTimeUnit(unit) { return unit && unit.toLowerCase().startsWith('sek'); }
 function numSets(plan) { return plan && plan.r ? 2 : 3; }
 
 function getLastWeights(type) {
@@ -645,18 +650,22 @@ function renderKraftForm(type, plan) {
 
   const exRows = exList.map((ex, ei) => {
     const last = lastW[ex.id] || [];
+    const isSek = isTimeUnit(ex.unit);
     const setInputs = Array.from({length: sets}, (_, si) => {
       const prev = last[si] || {};
+      const inputs = isSek
+        ? `<input type="number" inputmode="numeric" placeholder="${prev.sek||'Sek'}" id="ex${ei}_s${si}_sek" value="" style="width:80px" onfocus="this.placeholder=''">`
+        : `<input type="number" inputmode="decimal" placeholder="${prev.kg||'kg'}" id="ex${ei}_s${si}_kg" value="" style="width:54px" onfocus="this.placeholder=''">
+          <input type="number" inputmode="numeric" placeholder="${prev.reps||'Wdh'}" id="ex${ei}_s${si}_reps" value="" style="width:48px" onfocus="this.placeholder=''">`;
       return `<div class="set-col">
         <div class="set-label">S${si+1}</div>
-        <div class="set-inputs">
-          <input type="number" inputmode="decimal" placeholder="${prev.kg||'kg'}" id="ex${ei}_s${si}_kg" value="" style="width:54px" onfocus="this.placeholder=''">
-          <input type="number" inputmode="numeric" placeholder="${prev.reps||'Wdh'}" id="ex${ei}_s${si}_reps" value="" style="width:48px" onfocus="this.placeholder=''">
-        </div>
+        <div class="set-inputs">${inputs}</div>
       </div>`;
     }).join('');
 
-    const prevSummary = last.length ? last.map(s => `${s.kg||'?'}×${s.reps||'?'}`).join(' | ') : '–';
+    const prevSummary = last.length
+      ? last.map(s => isSek ? `${s.sek||'?'}s` : `${s.kg||'?'}×${s.reps||'?'}`).join(' | ')
+      : '–';
 
     return `<div class="ex-row">
       <div class="ex-header">
@@ -717,9 +726,11 @@ function saveKraft(type, exCount, sets) {
   for (let ei = 0; ei < exCount; ei++) {
     const exSets = [];
     for (let si = 0; si < sets; si++) {
-      const kgEl = document.getElementById(`ex${ei}_s${si}_kg`);
-      const repsEl = document.getElementById(`ex${ei}_s${si}_reps`);
-      if (kgEl) exSets.push({ kg: kgEl.value || null, reps: repsEl?.value || null });
+      const sekEl = document.getElementById(`ex${ei}_s${si}_sek`);
+      const kgEl  = document.getElementById(`ex${ei}_s${si}_kg`);
+      const repsEl= document.getElementById(`ex${ei}_s${si}_reps`);
+      if (sekEl)      exSets.push({ sek: sekEl.value || null });
+      else if (kgEl)  exSets.push({ kg: kgEl.value || null, reps: repsEl?.value || null });
     }
     exercises.push({ id: exList[ei]?.id || String(ei), name: exList[ei]?.name || '', sets: exSets });
   }
