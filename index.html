@@ -1007,10 +1007,13 @@ function renderFortschritt() {
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <button onclick="saveSyncUrl()" style="flex:1">URL speichern</button>
-        <button onclick="syncNow()" style="flex:1">Jetzt sync</button>
+        <button onclick="loadFromCloud(()=>renderFortschritt())" style="flex:1">↓ Laden</button>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Ausstehend: <strong>${unsynced}</strong> Einträge</div>
-      <button onclick="resetSync()" style="width:100%;font-size:13px">Alle Daten neu senden</button>
+      <div style="display:flex;gap:8px">
+        <button onclick="syncNow()" style="flex:1;font-size:13px">⟳ Hochladen</button>
+        <button onclick="resetSync()" style="flex:1;font-size:13px">Alle neu senden</button>
+      </div>
     </div>
   `;
 
@@ -1195,7 +1198,7 @@ function drawBarChart(canvas, data, color) {
 }
 
 // ── SYNC ───────────────────────────────────────────────────
-let syncState = 'idle'; // idle | syncing | error
+let syncState = 'idle'; // idle | loading | syncing | error
 let syncPending = false;
 
 function updateSyncChip() {
@@ -1204,7 +1207,8 @@ function updateSyncChip() {
   const url = DATA.settings.syncUrl;
   if (!url) { el.textContent = '○ kein Sync'; el.style.color=''; return; }
   const unsynced = DATA.entries.filter(e => !e.synced).length;
-  if (syncState === 'syncing') { el.textContent = '⟳ sync…'; el.style.color='var(--orange)'; }
+  if (syncState === 'loading') { el.textContent = '↓ Laden…'; el.style.color='var(--blue)'; }
+  else if (syncState === 'syncing') { el.textContent = '⟳ sync…'; el.style.color='var(--orange)'; }
   else if (unsynced > 0) { el.textContent = `● ${unsynced} offen`; el.style.color='var(--orange)'; }
   else { el.textContent = '● gesichert'; el.style.color='var(--green)'; }
 }
@@ -1255,6 +1259,52 @@ function resetSync() {
   showToast('Alle Daten werden neu gesendet…');
 }
 
+// ── BIDIREKTIONALER SYNC: Daten aus Google Sheets laden ────
+function loadFromCloud(callback) {
+  const url = DATA.settings.syncUrl;
+  if (!url) { if (callback) callback(); return; }
+
+  syncState = 'loading';
+  updateSyncChip();
+
+  fetch(url + '?action=export', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(remoteEntries => {
+      if (!Array.isArray(remoteEntries)) throw new Error('Keine Array-Antwort');
+
+      // Neue IDs aus der Cloud einfügen (Dedup per id)
+      const localIds = new Set(DATA.entries.map(e => e.id));
+      let added = 0;
+      remoteEntries.forEach(re => {
+        if (re && re.id && !localIds.has(re.id)) {
+          re.synced = true; // aus Cloud → gilt als synchronisiert
+          DATA.entries.push(re);
+          localIds.add(re.id);
+          added++;
+        }
+      });
+
+      if (added > 0) {
+        save();
+        renderHeute();
+        showToast(`↓ ${added} Einträge geladen`);
+      }
+
+      // Jetzt lokale ungesicherte Einträge hochladen
+      syncState = 'idle';
+      updateSyncChip();
+      trySync();
+      if (callback) callback();
+    })
+    .catch(err => {
+      console.warn('Cloud-Load fehlgeschlagen:', err);
+      syncState = 'idle';
+      updateSyncChip();
+      trySync(); // trotzdem versuchen, lokale Daten hochzuladen
+      if (callback) callback();
+    });
+}
+
 function openSyncSettings() {
   switchTab('fortschritt', document.getElementById('btn-fortschritt'));
   setTimeout(() => {
@@ -1300,9 +1350,10 @@ function showToast(msg) {
 function init() {
   renderHeute();
   updateSyncChip();
-  // Auto-retry pending syncs
-  if (DATA.settings.syncUrl && DATA.entries.some(e => !e.synced)) {
-    trySync();
+  // Beim Start: aus der Cloud laden (holt neue Einträge anderer Geräte)
+  // dann lokale Einträge hochladen
+  if (DATA.settings.syncUrl) {
+    loadFromCloud();
   }
 }
 

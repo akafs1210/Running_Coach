@@ -1,199 +1,179 @@
 /**
- * Google Apps Script – Training Tracker Backend
- * Empfängt POST-Requests von der Trainings-App und schreibt Einträge in Google Sheets.
+ * Google Apps Script – Training Tracker Sync Backend
+ * Sheet ID: 1n0-lXE6DWVEhtYrfCG_TbZeveecS4CDLFoDudfgyX4c
  *
  * Deployment:
- * 1. Neues Google Sheet erstellen
- * 2. Erweiterungen → Apps Script → diesen Code einfügen
- * 3. Bereitstellen → Neue Bereitstellung → Web-App
- *    - Ausführen als: Ich selbst
- *    - Zugriff: Jeder
- * 4. Bereitgestellte URL in die Trainings-App eintragen
+ * 1. sheet.new → Erweiterungen → Apps Script → diesen Code einfügen
+ * 2. Bereitstellen → Neue Bereitstellung → Web-App
+ *    Ausführen als: Ich selbst | Zugriff: Jeder
+ * 3. /exec-URL in App eintragen (Fortschritt → Sync)
+ *
+ * doGet?action=export  → gibt alle Einträge als JSON zurück (für Sync)
+ * doPost               → schreibt neue Einträge
  */
 
-const SHEET_NAME_KRAFT  = 'Log_Kraft';
-const SHEET_NAME_LAUF   = 'Log_Lauf';
-const SHEET_NAME_RAD    = 'Log_Rad';
-const SHEET_NAME_GEWICHT = 'Log_Gewicht';
-const SHEET_NAME_UEBERSICHT = 'Übersicht_KW';
+const RAW_SHEET   = 'Sync_Eintraege';   // Rohdaten für App-Sync
+const SHEET_KRAFT = 'Log_Kraft';
+const SHEET_LAUF  = 'Log_Lauf';
+const SHEET_RAD   = 'Log_Rad';
+const SHEET_GEW   = 'Log_Gewicht';
+const SHEET_KW    = 'Uebersicht_KW';
 
+// ── GET: Daten exportieren ─────────────────────────────────
+function doGet(e) {
+  const action = (e && e.parameter && e.parameter.action) || '';
+
+  if (action === 'export') {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(RAW_SHEET);
+    if (!sheet || sheet.getLastRow() < 2) {
+      return jsonResponse([]);
+    }
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+    const entries = rows
+      .filter(r => r[0])
+      .map(r => { try { return JSON.parse(r[1]); } catch(e) { return null; } })
+      .filter(Boolean);
+    return jsonResponse(entries);
+  }
+
+  return jsonResponse({ ok: true, info: 'Training Tracker Sync API' });
+}
+
+function jsonResponse(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── POST: Einträge schreiben ───────────────────────────────
 function doPost(e) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(30000);
     const payload = JSON.parse(e.postData.contents);
     const entries = payload.entries || [];
-
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    entries.forEach(entry => {
-      try {
-        writeEntry(ss, entry);
-      } catch(err) {
-        Logger.log('Fehler bei Eintrag ' + entry.id + ': ' + err);
-      }
+    // Bestehende IDs aus Raw-Sheet laden
+    const rawSheet = getOrCreate(ss, RAW_SHEET, ['id', 'json', 'gespeichert_am']);
+    const existingIds = new Set();
+    if (rawSheet.getLastRow() > 1) {
+      rawSheet.getRange(2, 1, rawSheet.getLastRow() - 1, 1)
+        .getValues().forEach(r => existingIds.add(r[0]));
+    }
+
+    const newEntries = entries.filter(e => e && e.id && !existingIds.has(e.id));
+
+    newEntries.forEach(entry => {
+      // Raw-Sheet (für App-Sync)
+      rawSheet.appendRow([entry.id, JSON.stringify(entry), new Date().toISOString()]);
+      // Strukturierte Sheets (für menschliche Lesbarkeit)
+      writeStructured(ss, entry);
     });
 
-    rebuildUebersicht(ss);
+    if (newEntries.length > 0) rebuildKW(ss);
 
-    return ContentService.createTextOutput(JSON.stringify({ok:true}))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({ok:false, error: err.toString()}))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(
+      JSON.stringify({ ok: true, written: newEntries.length })
+    ).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    Logger.log(err);
+    return ContentService.createTextOutput(
+      JSON.stringify({ ok: false, error: err.toString() })
+    ).setMimeType(ContentService.MimeType.JSON);
   } finally {
     lock.releaseLock();
   }
 }
 
-function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({ok:true}))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function getOrCreateSheet(ss, name, headers) {
-  let sheet = ss.getSheetByName(name);
-  if (!sheet) {
-    sheet = ss.insertSheet(name);
-    if (headers && headers.length) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      sheet.getRange(1, 1, 1, headers.length)
-        .setBackground('#1a1a2e').setFontColor('#ffffff').setFontWeight('bold');
-      sheet.setFrozenRows(1);
-    }
-  }
-  return sheet;
-}
-
-function entryExists(sheet, id) {
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === id) return true;
-  }
-  return false;
-}
-
-function writeEntry(ss, entry) {
+// ── Strukturierte Sheets ───────────────────────────────────
+function writeStructured(ss, entry) {
   const type = entry.type;
 
   if (type === 'kraft_a' || type === 'kraft_b') {
-    const sheet = getOrCreateSheet(ss, SHEET_NAME_KRAFT, [
-      'ID','KW','Jahr','Datum','Typ','Übung','Satz','kg','Wdh/m/Sek','KGW','Gefühl','Notizen'
-    ]);
-    if (entryExists(sheet, entry.id)) return;
-    const exercises = entry.exercises || [];
-    exercises.forEach(ex => {
+    const sh = getOrCreate(ss, SHEET_KRAFT,
+      ['ID','KW','Jahr','Datum','Typ','Übung','Satz','kg','Wdh','KGW','Gefühl','Notizen']);
+    (entry.exercises || []).forEach(ex => {
       (ex.sets || []).forEach((s, si) => {
-        sheet.appendRow([
-          entry.id, entry.kw, entry.yr, entry.date,
-          type === 'kraft_a' ? 'Push' : 'Pull',
-          ex.name, si+1, s.kg||'', s.reps||'',
-          entry.kgw||'', entry.feeling||'', entry.notes||''
-        ]);
+        sh.appendRow([entry.id, entry.kw, entry.yr, entry.date,
+          type==='kraft_a'?'Push':'Pull', ex.name, si+1,
+          s.kg||'', s.reps||'', entry.kgw||'', entry.feeling||'', entry.notes||'']);
       });
     });
     return;
   }
 
   if (['longrun','threshold','interval','z2'].includes(type)) {
-    const sheet = getOrCreateSheet(ss, SHEET_NAME_LAUF, [
-      'ID','KW','Jahr','Datum','Typ','km','Zeit_min','Pace','HR_Avg','HR_Max','Knie','Temp','Notizen'
-    ]);
-    if (entryExists(sheet, entry.id)) return;
-    sheet.appendRow([
-      entry.id, entry.kw, entry.yr, entry.date, type,
+    const sh = getOrCreate(ss, SHEET_LAUF,
+      ['ID','KW','Jahr','Datum','Typ','km','Zeit_min','Pace','HR_Avg','HR_Max','Knie','Notizen']);
+    sh.appendRow([entry.id, entry.kw, entry.yr, entry.date, type,
       entry.km||'', entry.timeMin||'', entry.pace||'',
-      entry.hrAvg||'', entry.hrMax||'', entry.knie||'', entry.temp||'', entry.notes||''
-    ]);
+      entry.hrAvg||'', entry.hrMax||'', entry.knie||'', entry.notes||'']);
     return;
   }
 
   if (['rennrad','mtb','ebike','wandern','schwimmen','surfen'].includes(type)) {
-    const sheet = getOrCreateSheet(ss, SHEET_NAME_RAD, [
-      'ID','KW','Jahr','Datum','Typ','km','Zeit_min','HR_Avg','Höhenmeter','Fueling','Notizen'
-    ]);
-    if (entryExists(sheet, entry.id)) return;
-    sheet.appendRow([
-      entry.id, entry.kw, entry.yr, entry.date, type,
+    const sh = getOrCreate(ss, SHEET_RAD,
+      ['ID','KW','Jahr','Datum','Typ','km','Zeit_min','HR_Avg','Höhenmeter','Fueling','Notizen']);
+    sh.appendRow([entry.id, entry.kw, entry.yr, entry.date, type,
       entry.km||'', entry.timeMin||'', entry.hrAvg||'',
-      entry.elevation||'', entry.fueling||entry.conditions||'', entry.notes||''
-    ]);
+      entry.elevation||'', entry.fueling||entry.conditions||'', entry.notes||'']);
     return;
   }
 
   if (type === 'gewicht') {
-    const sheet = getOrCreateSheet(ss, SHEET_NAME_GEWICHT, [
-      'ID','KW','Jahr','Datum','kg'
-    ]);
-    if (entryExists(sheet, entry.id)) return;
-    sheet.appendRow([entry.id, entry.kw, entry.yr, entry.date, entry.kg||'']);
+    const sh = getOrCreate(ss, SHEET_GEW, ['ID','KW','Jahr','Datum','kg']);
+    sh.appendRow([entry.id, entry.kw, entry.yr, entry.date, entry.kg||'']);
     return;
   }
 }
 
-function rebuildUebersicht(ss) {
-  const sheet = getOrCreateSheet(ss, SHEET_NAME_UEBERSICHT, [
-    'KW','Jahr','Gewicht_Avg','Lauf_km_Ist','Rad_km_Ist','Kraft_Einheiten'
-  ]);
+// ── Übersicht KW neu aufbauen ──────────────────────────────
+function rebuildKW(ss) {
+  const sheet = getOrCreate(ss, SHEET_KW,
+    ['KW','Jahr','Gewicht_Avg','Lauf_km','Rad_km','Kraft_Einheiten']);
 
-  // Collect data from all log sheets
   const kwData = {};
-
-  function ensureKW(kw, yr) {
-    const key = `${yr}-${String(kw).padStart(2,'0')}`;
-    if (!kwData[key]) kwData[key] = {kw, yr, weights:[], laufKm:0, radKm:0, kraft:0};
+  function kw(k, y) {
+    const key = `${y}-${String(k).padStart(2,'0')}`;
+    if (!kwData[key]) kwData[key] = {k,y,w:[],lauf:0,rad:0,kraft:new Set()};
     return kwData[key];
   }
 
-  const laufSheet = ss.getSheetByName(SHEET_NAME_LAUF);
-  if (laufSheet) {
-    const rows = laufSheet.getDataRange().getValues().slice(1);
-    rows.forEach(r => {
-      const kw = r[1], yr = r[2], km = parseFloat(r[5])||0;
-      if (kw && yr) ensureKW(kw,yr).laufKm += km;
+  const raw = ss.getSheetByName(RAW_SHEET);
+  if (raw && raw.getLastRow() > 1) {
+    raw.getRange(2,1,raw.getLastRow()-1,2).getValues().forEach(r => {
+      try {
+        const e = JSON.parse(r[1]);
+        const d = kw(e.kw, e.yr);
+        if (['longrun','threshold','interval','z2'].includes(e.type)) d.lauf += parseFloat(e.km)||0;
+        if (['rennrad','mtb','ebike'].includes(e.type)) d.rad += parseFloat(e.km)||0;
+        if (['kraft_a','kraft_b'].includes(e.type)) d.kraft.add(e.id);
+        if (e.type==='gewicht' && e.kg) d.w.push(parseFloat(e.kg));
+      } catch(x) {}
     });
   }
 
-  const radSheet = ss.getSheetByName(SHEET_NAME_RAD);
-  if (radSheet) {
-    const rows = radSheet.getDataRange().getValues().slice(1);
-    rows.forEach(r => {
-      const kw = r[1], yr = r[2], km = parseFloat(r[5])||0;
-      if (kw && yr) ensureKW(kw,yr).radKm += km;
-    });
-  }
-
-  const kraftSheet = ss.getSheetByName(SHEET_NAME_KRAFT);
-  if (kraftSheet) {
-    // Count unique entry IDs per KW
-    const rows = kraftSheet.getDataRange().getValues().slice(1);
-    const seen = {};
-    rows.forEach(r => {
-      const id = r[0], kw = r[1], yr = r[2];
-      if (kw && yr) {
-        const key = `${yr}-${kw}-${id}`;
-        if (!seen[key]) { seen[key] = true; ensureKW(kw,yr).kraft++; }
-      }
-    });
-  }
-
-  const gewichtSheet = ss.getSheetByName(SHEET_NAME_GEWICHT);
-  if (gewichtSheet) {
-    const rows = gewichtSheet.getDataRange().getValues().slice(1);
-    rows.forEach(r => {
-      const kw = r[1], yr = r[2], kg = parseFloat(r[4]);
-      if (kw && yr && !isNaN(kg)) ensureKW(kw,yr).weights.push(kg);
-    });
-  }
-
-  // Rebuild overview sheet (clear data rows, keep header)
-  const lastRow = sheet.getLastRow();
-  if (lastRow > 1) sheet.deleteRows(2, lastRow-1);
-
-  const keys = Object.keys(kwData).sort();
-  keys.forEach(key => {
+  if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow()-1);
+  Object.keys(kwData).sort().forEach(key => {
     const d = kwData[key];
-    const avgW = d.weights.length ? (d.weights.reduce((a,b)=>a+b,0)/d.weights.length).toFixed(1) : '';
-    sheet.appendRow([d.kw, d.yr, avgW, d.laufKm.toFixed(1), d.radKm.toFixed(1), d.kraft]);
+    const avg = d.w.length ? (d.w.reduce((a,b)=>a+b,0)/d.w.length).toFixed(1) : '';
+    sheet.appendRow([d.k, d.y, avg, d.lauf.toFixed(1), d.rad.toFixed(1), d.kraft.size]);
   });
+}
+
+// ── Hilfs-Funktion ────────────────────────────────────────
+function getOrCreate(ss, name, headers) {
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    if (headers && headers.length) {
+      sh.getRange(1,1,1,headers.length).setValues([headers])
+        .setBackground('#1a1a2e').setFontColor('#ffffff').setFontWeight('bold');
+      sh.setFrozenRows(1);
+    }
+  }
+  return sh;
 }
