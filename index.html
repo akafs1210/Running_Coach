@@ -1928,6 +1928,12 @@ function renderSettings() {
       </div>
     </div>
 
+    <div class="sec">HF-Zonen</div>
+    <div class="card" id="hr-zones-card">
+      ${renderHRZones()}
+      <div style="margin-top:10px;font-size:12px;color:var(--text3)">HRmax ${s.hrZones.max} bpm · <a href="#" onclick="openHRSettings();return false" style="color:var(--text2)">Anpassen</a></div>
+    </div>
+
     <div class="sec">App</div>
     <div class="card">
       <div style="font-size:13px;color:var(--text2);margin-bottom:10px">Version: <code>${APP_BUILD||'–'}</code></div>
