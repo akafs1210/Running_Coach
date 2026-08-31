@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Trainingsplan">
 <meta name="theme-color" content="#000000">
-<meta name="app-build" content="20260831-5">
+<meta name="app-build" content="20260831-9">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23111'/><text y='.9em' font-size='80' x='10'>🏋️</text></svg>">
 <title>Trainingsplan Arthur 2026/2027</title>
 <style>
@@ -146,6 +146,7 @@ canvas{display:block;width:100%;border-radius:10px;background:var(--bg2)}
     <div id="tab-plan" class="tab-panel"></div>
     <div id="tab-eintragen" class="tab-panel"></div>
     <div id="tab-fortschritt" class="tab-panel"></div>
+    <div id="tab-settings" class="tab-panel"></div>
   </div>
   <nav id="tabnav">
     <button class="tab-btn active" onclick="switchTab('heute',this)" id="btn-heute">
@@ -157,12 +158,16 @@ canvas{display:block;width:100%;border-radius:10px;background:var(--bg2)}
       Plan
     </button>
     <button class="tab-btn" onclick="switchTab('eintragen',this)" id="btn-eintragen">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
       Eintragen
     </button>
     <button class="tab-btn" onclick="switchTab('fortschritt',this)" id="btn-fortschritt">
       <svg viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-      Fortschritt
+      Stats
+    </button>
+    <button class="tab-btn" onclick="switchTab('settings',this)" id="btn-settings">
+      <svg viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+      Settings
     </button>
   </nav>
 </div>
@@ -264,6 +269,8 @@ function defaultData() {
     settings: {
       syncUrl: '',
       stravaToken: '',
+      gistToken: '',
+      gistId: '',
       hrZones: {z1:136,z2:142,z3:158,z4:168,max:195},
       customExA: null,
       customExB: null,
@@ -338,7 +345,7 @@ function switchTab(name, btn) {
   renderTab(name);
 }
 function renderTab(name) {
-  const fn = {heute:renderHeute, plan:renderPlan, eintragen:renderEintragen, fortschritt:renderFortschritt};
+  const fn = {heute:renderHeute, plan:renderPlan, eintragen:renderEintragen, fortschritt:renderFortschritt, settings:renderSettings};
   if (fn[name]) fn[name]();
 }
 
@@ -360,7 +367,7 @@ function renderHeute() {
   const runKm = runEntries.reduce((s,e) => s + (parseFloat(e.km)||0), 0);
   const rideEntries = entries.filter(e => ['rennrad','mtb','ebike'].includes(e.type));
   const rideKm = rideEntries.reduce((s,e) => s + (parseFloat(e.km)||0), 0);
-  const kraftEntries = entries.filter(e => ['kraft_a','kraft_b'].includes(e.type));
+  const kraftEntries = entries.filter(e => ['kraft_a','kraft_b','kraft_manuell'].includes(e.type));
   const kraftCount = kraftEntries.length;
 
   const runTarget = plan ? plan.lauf : 0;
@@ -1188,28 +1195,90 @@ function saveGewicht() {
   showToast('Gespeichert ✓');
 }
 
-function entryHTML(e) {
-  const typeLabels = {
-    kraft_a:'💪 Kraft A',kraft_b:'🏋️ Kraft B',
-    longrun:'🏃 Longrun',threshold:'🔥 Threshold',interval:'⚡ Intervall',z2:'🌿 Z2',
-    rennrad:'🚴 Rennrad',mtb:'🏔️ MTB',ebike:'🚴 E-Bike',wandern:'🥾 Wandern',
-    schwimmen:'🏊 Schwimmen',surfen:'🏄 Surfen',gewicht:'⚖️ Gewicht'
-  };
-  let detail = '';
-  if (e.km) detail += `${parseFloat(e.km).toFixed(1)} km`;
-  if (e.timeMin) detail += (detail?' · ':'')+fmtDuration(parseFloat(e.timeMin));
-  if (e.hrAvg) detail += (detail?' · ':'')+`Ø ${e.hrAvg} bpm`;
-  if (e.pace) detail += (detail?' · ':'')+e.pace;
-  if (e.kg && e.type==='gewicht') detail = `${e.kg} kg`;
-  if (e.exercises) detail = `${e.exercises.length} Übungen · ${e.exercises[0]?.sets?.length||0} Sätze`;
+const TYPE_LABELS = {
+  kraft_a:'💪 Kraft A', kraft_b:'🏋️ Kraft B', kraft_manuell:'✏️ Kraft Manuell',
+  longrun:'🏃 Longrun', threshold:'🔥 Threshold', interval:'⚡ Intervall', z2:'🌿 Z2',
+  rennrad:'🚴 Rennrad', mtb:'🏔️ MTB', ebike:'🚴 E-Bike', wandern:'🥾 Wandern',
+  schwimmen:'🏊 Schwimmen', surfen:'🏄 Surfen', gewicht:'⚖️ Gewicht'
+};
 
-  return `<div class="entry-item">
-    <div style="flex:1">
-      <div style="font-weight:600">${typeLabels[e.type]||e.type}</div>
-      <div class="entry-meta">${fmtDate(e.date)} ${detail ? '· '+detail : ''}</div>
-      ${e.notes ? `<div style="font-size:12px;color:var(--text2);margin-top:3px">${e.notes.slice(0,60)}${e.notes.length>60?'…':''}</div>` : ''}
+function entrySummary(e) {
+  let d = '';
+  if (e.km) d += `${parseFloat(e.km).toFixed(1)} km`;
+  if (e.timeMin) d += (d?' · ':'')+fmtDuration(parseFloat(e.timeMin));
+  if (e.hrAvg) d += (d?' · ':'')+`Ø${e.hrAvg} bpm`;
+  if (e.type==='gewicht' && e.kg) return `${e.kg} kg`;
+  if (e.exercises) d = `${e.exercises.length} Übungen`;
+  return d;
+}
+
+function entryDetail(e) {
+  if (['kraft_a','kraft_b','kraft_manuell'].includes(e.type)) {
+    if (!e.exercises?.length) return '<div style="color:var(--text3);font-size:13px">Keine Übungsdaten</div>';
+    const rows = e.exercises.map(ex => {
+      const sets = (ex.sets||[]).map((s,si) => {
+        if (s.sek) return `<span style="color:var(--text2)">S${si+1}:</span> ${s.sek}s`;
+        if (s.kg || s.reps) return `<span style="color:var(--text2)">S${si+1}:</span> ${s.kg||'?'}kg×${s.reps||'?'}`;
+        return '';
+      }).filter(Boolean).join('  ');
+      return `<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <div style="font-weight:600;margin-bottom:2px">${ex.name}</div>
+        <div style="color:var(--text2)">${sets||'–'}</div>
+      </div>`;
+    }).join('');
+    return `${rows}${e.kgw?`<div style="font-size:12px;color:var(--text3);margin-top:6px">KGW: ${e.kgw} kg</div>`:''}
+      ${e.feeling?`<div style="font-size:12px;color:var(--text3)">Gefühl: ${e.feeling}/10</div>`:''}`;
+  }
+  if (['longrun','threshold','interval','z2'].includes(e.type)) {
+    const items = [
+      e.km && `${parseFloat(e.km).toFixed(1)} km`,
+      e.timeMin && fmtDuration(parseFloat(e.timeMin)),
+      e.pace && `⌚ ${e.pace}/km`,
+      e.hrAvg && `♥ Ø${e.hrAvg} bpm`,
+      e.hrMax && `♥ max ${e.hrMax} bpm`,
+      e.knie && `Knie: ${e.knie}/10`,
+    ].filter(Boolean);
+    return `<div style="font-size:13px;line-height:1.8;color:var(--text2)">${items.join(' · ')}</div>`;
+  }
+  if (['rennrad','mtb','ebike','wandern'].includes(e.type)) {
+    const items = [
+      e.km && `${parseFloat(e.km).toFixed(1)} km`,
+      e.timeMin && fmtDuration(parseFloat(e.timeMin)),
+      e.hrAvg && `♥ Ø${e.hrAvg} bpm`,
+      e.elevation && `↑${e.elevation}m`,
+      e.fueling && `Fueling: ${e.fueling}`,
+    ].filter(Boolean);
+    return `<div style="font-size:13px;line-height:1.8;color:var(--text2)">${items.join(' · ')}</div>`;
+  }
+  return '';
+}
+
+function toggleEntryDetail(id) {
+  const d = document.getElementById('ed-'+id);
+  const c = document.getElementById('ec-'+id);
+  if (!d) return;
+  const open = d.style.display !== 'none';
+  d.style.display = open ? 'none' : 'block';
+  if (c) c.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
+}
+
+function entryHTML(e) {
+  const summary = entrySummary(e);
+  const detail = entryDetail(e);
+  const hasDetail = !!detail;
+  return `<div class="entry-item" style="flex-direction:column;cursor:${hasDetail?'pointer':'default'}" ${hasDetail?`onclick="toggleEntryDetail('${e.id}')"`:''}}>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600">${TYPE_LABELS[e.type]||e.type}</div>
+        <div class="entry-meta">${fmtDate(e.date)}${summary?' · '+summary:''}</div>
+        ${e.stravaId?'<div style="font-size:11px;color:var(--text3)">Strava</div>':''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        ${hasDetail?`<span id="ec-${e.id}" style="color:var(--text3);font-size:18px;transition:transform .2s">›</span>`:''}
+        <button class="delete-btn" onclick="event.stopPropagation();deleteEntry('${e.id}')">✕</button>
+      </div>
     </div>
-    <button class="delete-btn" onclick="deleteEntry('${e.id}')">✕</button>
+    ${hasDetail?`<div id="ed-${e.id}" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:8px">${detail}${e.notes?`<div style="font-size:12px;color:var(--text2);margin-top:6px;font-style:italic">${e.notes}</div>`:''}</div>`:''}
   </div>`;
 }
 
@@ -1293,35 +1362,10 @@ function renderFortschritt() {
       ).join('') || '<div style="color:var(--text3);font-size:14px">Noch keine Kraftdaten.</div>'}
     </div>
 
-    <div class="sec">Strava Verbindung</div>
-    <div class="card">
-      <div class="form-group"><label>Strava Access Token</label>
-        <input type="text" id="strava-token-input" placeholder="Aus .tokens.json einfügen…" value="${DATA.settings.stravaToken||''}" style="font-family:monospace;font-size:13px">
-      </div>
-      <button onclick="saveStravaToken()" style="width:100%;margin-bottom:8px">Token speichern</button>
-      <div style="font-size:12px;color:var(--text3)">Token aus <code>.tokens.json</code> kopieren (access_token). Gültig 6 Stunden – danach bot_simple.py einmal ausführen und neu kopieren.</div>
-    </div>
-
-    <div class="sec">Backup & Sync</div>
-    <div class="card">
-      <div class="form-group"><label>Google Apps Script URL</label>
-        <input type="url" id="sync-url" placeholder="https://script.google.com/macros/s/..." value="${DATA.settings.syncUrl||''}">
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button onclick="saveSyncUrl()" style="flex:1">URL speichern</button>
-        <button onclick="loadFromCloud(()=>renderFortschritt())" style="flex:1">↓ Laden</button>
-      </div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Ausstehend: <strong>${unsynced}</strong> Einträge</div>
-      <div style="display:flex;gap:8px">
-        <button onclick="syncNow()" style="flex:1;font-size:13px">⟳ Hochladen</button>
-        <button onclick="resetSync()" style="flex:1;font-size:13px">Alle neu senden</button>
-      </div>
-    </div>
-
-    <div class="sec">App</div>
-    <div class="card">
-      <div style="font-size:13px;color:var(--text2);margin-bottom:10px">Version: <code>${APP_BUILD||'–'}</code></div>
-      <button onclick="location.reload(true)" style="width:100%;font-size:14px">🔄 App neu laden</button>
+    <div style="text-align:center;padding:16px">
+      <button onclick="switchTab('settings',document.getElementById('btn-settings'))" style="font-size:14px;padding:12px 24px">
+        ⚙ Einstellungen öffnen
+      </button>
     </div>
   `;
 
@@ -1512,10 +1556,10 @@ let syncPending = false;
 function updateSyncChip() {
   const el = document.getElementById('sync-chip');
   if (!el) return;
-  const url = DATA.settings.syncUrl;
-  if (!url) { el.textContent = '○ kein Sync'; el.style.color=''; return; }
+  const hasSync = DATA.settings.syncUrl || DATA.settings.gistToken;
+  if (!hasSync) { el.textContent = '○ kein Sync'; el.style.color=''; return; }
   const unsynced = DATA.entries.filter(e => !e.synced).length;
-  if (syncState === 'loading') { el.textContent = '↓ Laden…'; el.style.color='var(--blue)'; }
+  if (gistSyncing || syncState === 'loading') { el.textContent = '↓ Laden…'; el.style.color='var(--blue)'; }
   else if (syncState === 'syncing') { el.textContent = '⟳ sync…'; el.style.color='var(--orange)'; }
   else if (unsynced > 0) { el.textContent = `● ${unsynced} offen`; el.style.color='var(--orange)'; }
   else { el.textContent = '● gesichert'; el.style.color='var(--green)'; }
@@ -1630,6 +1674,7 @@ function importStrava(act) {
 }
 
 function trySync() {
+  if (DATA.settings.gistToken) { gistSync(); return; }
   if (!DATA.settings.syncUrl) return;
   if (syncState === 'syncing') { syncPending = true; return; }
   const toSync = DATA.entries.filter(e => !e.synced);
@@ -1713,10 +1758,7 @@ function loadFromCloud(callback) {
 }
 
 function openSyncSettings() {
-  switchTab('fortschritt', document.getElementById('btn-fortschritt'));
-  setTimeout(() => {
-    document.querySelector('#tab-fortschritt input[type=url]')?.scrollIntoView({behavior:'smooth',block:'center'});
-  }, 200);
+  switchTab('settings', document.getElementById('btn-settings'));
 }
 
 // ── MODAL ──────────────────────────────────────────────────
@@ -1754,6 +1796,128 @@ function showToast(msg) {
 }
 
 // ── INIT ───────────────────────────────────────────────────
+// ── GIST SYNC ──────────────────────────────────────────────
+const GIST_FILE = 'trainingsplan_arthur.json';
+let gistSyncing = false;
+
+async function gistSync(callback) {
+  const {gistToken, gistId} = DATA.settings;
+  if (!gistToken) { if (callback) callback(); return; }
+
+  if (gistSyncing) return;
+  gistSyncing = true;
+  updateSyncChip();
+
+  try {
+    const headers = {Authorization:`token ${gistToken}`, 'Content-Type':'application/json'};
+
+    // Kein Gist ID → neuen Gist erstellen
+    if (!gistId) {
+      const r = await fetch('https://api.github.com/gists', {
+        method: 'POST', headers,
+        body: JSON.stringify({description:'Trainingsplan Arthur 2026/2027', public:false,
+          files:{[GIST_FILE]:{content: JSON.stringify({entries:DATA.entries, ts:Date.now()})}}})
+      });
+      const g = await r.json();
+      DATA.settings.gistId = g.id;
+      save();
+      showToast(`Gist erstellt: ${g.id.slice(0,8)}…`);
+      gistSyncing = false;
+      updateSyncChip();
+      if (callback) callback();
+      return;
+    }
+
+    // Remote-Daten laden + mergen
+    const r = await fetch(`https://api.github.com/gists/${gistId}`, {headers});
+    if (!r.ok) throw new Error(`Gist Fehler: ${r.status}`);
+    const g = await r.json();
+    const fileContent = g.files[GIST_FILE]?.content;
+    if (fileContent) {
+      const remote = JSON.parse(fileContent);
+      const localIds = new Set(DATA.entries.map(e => e.id));
+      let added = 0;
+      (remote.entries||[]).forEach(re => {
+        if (re?.id && !localIds.has(re.id)) { DATA.entries.push({...re, synced:true}); added++; }
+      });
+      if (added > 0) { save(); renderHeute(); showToast(`↓ ${added} Einträge geladen`); }
+    }
+
+    // Alle Daten hochladen
+    await fetch(`https://api.github.com/gists/${gistId}`, {
+      method: 'PATCH', headers,
+      body: JSON.stringify({files:{[GIST_FILE]:{content: JSON.stringify({entries:DATA.entries, ts:Date.now()})}}})
+    });
+
+    DATA.entries.forEach(e => e.synced = true);
+    save();
+  } catch(err) {
+    console.warn('Gist sync Fehler:', err);
+    showToast('Sync-Fehler: ' + err.message);
+  }
+
+  gistSyncing = false;
+  updateSyncChip();
+  if (callback) callback();
+}
+
+function saveGistSettings() {
+  DATA.settings.gistToken = document.getElementById('gist-token')?.value?.trim() || '';
+  DATA.settings.gistId    = document.getElementById('gist-id')?.value?.trim() || '';
+  save();
+  showToast('Gespeichert');
+  gistSync(() => renderSettings());
+}
+
+// ── SETTINGS TAB ───────────────────────────────────────────
+function renderSettings() {
+  const s = DATA.settings;
+  const unsynced = DATA.entries.filter(e => !e.synced).length;
+  document.getElementById('tab-settings').innerHTML = `
+    <div class="sec">Strava</div>
+    <div class="card">
+      <div class="form-group"><label>Access Token</label>
+        <input type="text" id="strava-token-input" placeholder="Aus .tokens.json einfügen…" value="${s.stravaToken||''}" style="font-family:monospace;font-size:12px">
+      </div>
+      <button onclick="saveStravaToken()" style="width:100%;margin-bottom:8px">Token speichern</button>
+      <div style="font-size:12px;color:var(--text3)">Token aus <code>.tokens.json</code> → access_token. Gültig 6 h.</div>
+    </div>
+
+    <div class="sec">GitHub Gist Sync</div>
+    <div class="card">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Synchronisiert alle Geräte über einen privaten GitHub Gist. Einmalig einrichten – danach automatisch.</div>
+      <div class="form-group"><label>Personal Access Token (gist-Scope)</label>
+        <input type="password" id="gist-token" placeholder="ghp_xxxxxxxxxxxx" value="${s.gistToken||''}" style="font-family:monospace;font-size:12px">
+      </div>
+      <div class="form-group"><label>Gist ID <span style="color:var(--text3)">(leer lassen → wird automatisch erstellt)</span></label>
+        <input type="text" id="gist-id" placeholder="wird automatisch ausgefüllt" value="${s.gistId||''}" style="font-family:monospace;font-size:12px">
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button onclick="saveGistSettings()" class="primary" style="flex:1">Speichern & Sync</button>
+        <button onclick="gistSync(()=>renderSettings())" style="flex:1">⟳ Jetzt sync</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2)">Ausstehend: <strong>${unsynced}</strong> Einträge</div>
+    </div>
+
+    <div class="sec">Google Sheets (optional)</div>
+    <div class="card">
+      <div class="form-group"><label>Apps Script URL</label>
+        <input type="url" id="sync-url" placeholder="https://script.google.com/macros/s/…" value="${s.syncUrl||''}">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="saveSyncUrl()" style="flex:1">URL speichern</button>
+        <button onclick="loadFromCloud(()=>renderSettings())" style="flex:1">↓ Laden</button>
+      </div>
+    </div>
+
+    <div class="sec">App</div>
+    <div class="card">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px">Version: <code>${APP_BUILD||'–'}</code></div>
+      <button onclick="location.reload(true)" style="width:100%;font-size:14px">🔄 App neu laden</button>
+    </div>
+  `;
+}
+
 // ── UPDATE CHECK ───────────────────────────────────────────
 const APP_BUILD = document.querySelector('meta[name="app-build"]')?.content || '';
 
@@ -1773,10 +1937,11 @@ function checkForUpdate() {
 function init() {
   renderHeute();
   updateSyncChip();
-  if (DATA.settings.syncUrl) {
+  if (DATA.settings.gistToken) {
+    gistSync();
+  } else if (DATA.settings.syncUrl) {
     loadFromCloud();
   }
-  // Update-Check 3 Sekunden nach Start (damit App zuerst rendert)
   setTimeout(checkForUpdate, 3000);
 }
 
