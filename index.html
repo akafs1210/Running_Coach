@@ -887,8 +887,9 @@ function renderEintragen() {
     `<button class="act-btn${actType===a.id?' sel':''}" onclick="selectAct('${a.id}')">${a.label}${a.sub?`<br><span style="color:var(--text3);font-size:10px">${a.sub}</span>`:''}</button>`
   ).join('');
 
-  // Entry list for this week
-  const entryList = entries.length ? entries.map(e => entryHTML(e)).join('') : '<div style="color:var(--text3);font-size:14px;padding:8px 0">Noch keine Einträge diese Woche.</div>';
+  // Entry list for this week (neueste zuerst)
+  const sortedEntries = [...entries].sort((a,b) => b.date.localeCompare(a.date));
+  const entryList = sortedEntries.length ? sortedEntries.map(e => entryHTML(e)).join('') : '<div style="color:var(--text3);font-size:14px;padding:8px 0">Noch keine Einträge diese Woche.</div>';
 
   document.getElementById('tab-eintragen').innerHTML = `
     <div class="form-group">
@@ -2148,7 +2149,7 @@ function loadStravaActivities() {
       el.innerHTML = '<div style="color:var(--text3);font-size:14px;text-align:center;padding:16px">Keine Aktivitäten in den letzten 7 Tagen.</div>';
       return;
     }
-    el.innerHTML = acts.map(a => {
+    el.innerHTML = [...acts].sort((a,b) => (b.start_date_local||'').localeCompare(a.start_date_local||'')).map(a => {
       const meta = STRAVA_TYPE_MAP[a.type] || {emoji:'🏅', label:a.type, type:null};
       const dist = a.distance > 0 ? (a.distance/1000).toFixed(1)+'km' : '';
       const mins = Math.round(a.moving_time / 60);
