@@ -247,6 +247,7 @@ function defaultData() {
     entries: [],
     settings: {
       syncUrl: '',
+      stravaToken: '',
       hrZones: {z1:136,z2:142,z3:158,z4:168,max:195},
       customExA: null,
       customExB: null,
@@ -407,6 +408,19 @@ function renderHeute() {
       <button class="act-btn" onclick="startEntry('gewicht')"><span class="act-emoji">⚖️</span>Gewicht</button>
     </div>
 
+    ${DATA.settings.stravaToken ? `
+    <div class="sec" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Strava – letzte 7 Tage</span>
+      <button onclick="loadStravaActivities()" style="font-size:11px;padding:4px 10px;border-radius:20px">↻ Neu laden</button>
+    </div>
+    <div id="strava-list"><div style="color:var(--text3);font-size:14px;text-align:center;padding:16px">Lade…</div></div>
+    ` : `
+    <div class="card" style="border-style:dashed;text-align:center">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px">Strava nicht verbunden</div>
+      <button onclick="switchTab('fortschritt',document.getElementById('btn-fortschritt'));setTimeout(()=>document.getElementById('strava-token-input')?.scrollIntoView({behavior:'smooth',block:'center'}),200)" style="font-size:13px">Strava verbinden →</button>
+    </div>
+    `}
+
     <div class="sec">HF-Zonen</div>
     <div class="card" id="hr-zones-card">
       ${renderHRZones()}
@@ -419,6 +433,9 @@ function renderHeute() {
       <div style="color:var(--green)">🏁 Wings for Life 21 km – 10.05.2027</div>
     </div>
   `;
+  if (DATA.settings.stravaToken) {
+    setTimeout(loadStravaActivities, 0);
+  }
 }
 
 function renderHRZones() {
@@ -1001,6 +1018,15 @@ function renderFortschritt() {
       ).join('') || '<div style="color:var(--text3);font-size:14px">Noch keine Kraftdaten.</div>'}
     </div>
 
+    <div class="sec">Strava Verbindung</div>
+    <div class="card">
+      <div class="form-group"><label>Strava Access Token</label>
+        <input type="text" id="strava-token-input" placeholder="Aus .tokens.json einfügen…" value="${DATA.settings.stravaToken||''}" style="font-family:monospace;font-size:13px">
+      </div>
+      <button onclick="saveStravaToken()" style="width:100%;margin-bottom:8px">Token speichern</button>
+      <div style="font-size:12px;color:var(--text3)">Token aus <code>.tokens.json</code> kopieren (access_token). Gültig 6 Stunden – danach bot_simple.py einmal ausführen und neu kopieren.</div>
+    </div>
+
     <div class="sec">Backup & Sync</div>
     <div class="card">
       <div class="form-group"><label>Google Apps Script URL</label>
@@ -1221,6 +1247,105 @@ function saveSyncUrl() {
   updateSyncChip();
   if (url) trySync();
   showToast('URL gespeichert');
+}
+
+// ── STRAVA ─────────────────────────────────────────────────
+const STRAVA_TYPE_MAP = {
+  WeightTraining: {emoji:'💪', label:'Krafttraining', type:'kraft_a'},
+  Run:            {emoji:'🏃', label:'Lauf',          type:'z2'},
+  VirtualRun:     {emoji:'🏃', label:'Lauf (Virtual)',type:'z2'},
+  Ride:           {emoji:'🚴', label:'Rennrad',        type:'rennrad'},
+  VirtualRide:    {emoji:'🚴', label:'Indoor Rad',     type:'rennrad'},
+  MountainBikeRide:{emoji:'🏔️', label:'MTB',          type:'mtb'},
+  EBikeRide:      {emoji:'⚡', label:'E-Bike',         type:'ebike'},
+  Hike:           {emoji:'🥾', label:'Wandern',        type:'wandern'},
+  Walk:           {emoji:'🚶', label:'Spazieren',      type:'wandern'},
+  Swim:           {emoji:'🏊', label:'Schwimmen',      type:'schwimmen'},
+  Surfing:        {emoji:'🏄', label:'Surfen',          type:'surfen'},
+};
+
+function saveStravaToken() {
+  const tok = document.getElementById('strava-token-input')?.value?.trim();
+  DATA.settings.stravaToken = tok || '';
+  save();
+  showToast(tok ? 'Token gespeichert ✓' : 'Token gelöscht');
+  renderHeute();
+}
+
+function loadStravaActivities() {
+  const token = DATA.settings.stravaToken;
+  const el = document.getElementById('strava-list');
+  if (!el || !token) return;
+
+  el.innerHTML = '<div style="color:var(--text3);font-size:14px;text-align:center;padding:16px">⟳ Lade Strava…</div>';
+
+  const since = Math.floor((Date.now() - 7 * 86400000) / 1000);
+  fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=15&after=${since}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  .then(r => {
+    if (r.status === 401) throw new Error('Token abgelaufen');
+    return r.json();
+  })
+  .then(acts => {
+    if (!Array.isArray(acts) || acts.length === 0) {
+      el.innerHTML = '<div style="color:var(--text3);font-size:14px;text-align:center;padding:16px">Keine Aktivitäten in den letzten 7 Tagen.</div>';
+      return;
+    }
+    el.innerHTML = acts.map(a => {
+      const meta = STRAVA_TYPE_MAP[a.type] || {emoji:'🏅', label:a.type, type:null};
+      const dist = a.distance > 0 ? (a.distance/1000).toFixed(1)+'km' : '';
+      const mins = Math.round(a.moving_time / 60);
+      const dur = mins >= 60 ? `${Math.floor(mins/60)}h${mins%60}min` : `${mins}min`;
+      const hr = a.average_heartrate ? ` · ø${Math.round(a.average_heartrate)} bpm` : '';
+      const date = a.start_date_local?.slice(0,10) || '';
+      const alreadyImported = DATA.entries.some(e => e.stravaId === a.id);
+      return `<div class="card" style="margin-bottom:8px;${alreadyImported?'opacity:.5':''}">
+        <div class="row-sb" style="margin-bottom:4px">
+          <span style="font-weight:700">${meta.emoji} ${a.name}</span>
+          <span style="font-size:12px;color:var(--text3)">${date}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:${meta.type&&!alreadyImported?'10':'0'}px">
+          ${meta.label}${dist?' · '+dist:''} · ${dur}${hr}
+        </div>
+        ${meta.type && !alreadyImported ? `<button onclick="importStrava(${JSON.stringify(a).replace(/"/g,'&quot;')})" style="width:100%;font-size:13px">Importieren →</button>` : ''}
+        ${alreadyImported ? '<div style="font-size:12px;color:var(--green)">✓ bereits importiert</div>' : ''}
+      </div>`;
+    }).join('');
+  })
+  .catch(err => {
+    el.innerHTML = `<div class="card" style="border-color:var(--red)">
+      <div style="color:var(--red);font-size:14px;margin-bottom:8px">⚠ ${err.message}</div>
+      ${err.message.includes('abgelaufen') ? '<div style="font-size:12px;color:var(--text2)">Token erneuern: <code>cat .tokens.json</code> und access_token neu eintragen (Fortschritt → Strava Verbindung)</div>' : ''}
+    </div>`;
+  });
+}
+
+function importStrava(act) {
+  const meta = STRAVA_TYPE_MAP[act.type] || {type: null};
+  if (!meta.type) return;
+  const {week, year} = currentKW();
+  const km = act.distance > 0 ? (act.distance/1000).toFixed(2) : '';
+  const mins = Math.round(act.moving_time / 60);
+  const entry = {
+    id: uid(),
+    stravaId: act.id,
+    type: meta.type,
+    date: act.start_date_local?.slice(0,10) || new Date().toISOString().slice(0,10),
+    kw: week, yr: year,
+    km: km,
+    timeMin: mins,
+    hrAvg: act.average_heartrate ? Math.round(act.average_heartrate) : '',
+    hrMax: act.max_heartrate ? Math.round(act.max_heartrate) : '',
+    elevation: act.total_elevation_gain ? Math.round(act.total_elevation_gain) : '',
+    notes: `Importiert von Strava: ${act.name}`,
+    synced: false,
+  };
+  DATA.entries.push(entry);
+  save();
+  showToast('Importiert! ✓');
+  trySync();
+  loadStravaActivities(); // neu laden um "bereits importiert" zu zeigen
 }
 
 function trySync() {
