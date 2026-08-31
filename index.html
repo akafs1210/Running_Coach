@@ -353,6 +353,7 @@ function renderTab(name) {
 
 // ── HEUTE TAB ──────────────────────────────────────────────
 let homeAddOpen = false;
+let homeKW = null; // null = aktuelle KW
 
 function toggleHomeAdd() {
   homeAddOpen = !homeAddOpen;
@@ -363,17 +364,28 @@ function toggleHomeAdd() {
   if (btn) btn.textContent = homeAddOpen ? '✕' : '+';
 }
 
+function shiftHomeKW(delta) {
+  const cur = homeKW || currentKW();
+  const d = new Date(Date.UTC(cur.year, 0, 1 + (cur.week - 1) * 7));
+  d.setUTCDate(d.getUTCDate() + delta * 7);
+  homeKW = getISOWeek(d);
+  renderHeute();
+}
+
 function renderHeute() {
-  const {week, year} = currentKW();
+  const cur = currentKW();
+  if (!homeKW) homeKW = cur;
+  const {week, year} = homeKW;
+  const isCurrentKW = (week === cur.week && year === cur.year);
   const plan = getPlan(week, year);
   const entries = getEntries(week, year);
 
   const kwEl = document.getElementById('header-kw');
   if (kwEl) kwEl.textContent = `${week}/${year}`;
 
-  const todayDay = new Date().getDay();
+  const todayDay = isCurrentKW ? new Date().getDay() : -1;
   const dayNames = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
-  const today = dayNames[todayDay];
+  const today = isCurrentKW ? dayNames[todayDay] : `KW ${week}/${year}`;
 
   // Wochentotals
   const runEntries = entries.filter(e => ['threshold','interval','z2','longrun'].includes(e.type));
@@ -462,7 +474,11 @@ function renderHeute() {
 
     ${todayCard}
 
-    <div class="sec">Diese Woche</div>
+    <div class="sec" style="display:flex;justify-content:space-between;align-items:center">
+      <button onclick="shiftHomeKW(-1)" style="padding:4px 12px;border-radius:20px;font-size:16px">‹</button>
+      <span>${isCurrentKW ? 'Diese Woche' : `KW ${week}/${year}`}${isCurrentKW?'':` <button onclick="homeKW=null;renderHeute()" style="font-size:11px;padding:2px 8px;border-radius:20px;margin-left:6px">Heute</button>`}</span>
+      <button onclick="shiftHomeKW(1)" style="padding:4px 12px;border-radius:20px;font-size:16px" ${isCurrentKW?'disabled':''}>›</button>
+    </div>
     <div id="home-entries">${entriesHTML}</div>
 
     ${DATA.settings.stravaToken ? `
