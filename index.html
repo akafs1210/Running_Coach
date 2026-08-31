@@ -137,7 +137,7 @@ canvas{display:block;width:100%;border-radius:10px;background:var(--bg2)}
   <div id="header">
     <div>
       <div id="header-title" style="font-size:15px;font-weight:700">Trainingsplan 2026/2027</div>
-      <div id="header-sub" class="sub">Hyrox Double · Wings for Life 21km</div>
+      <div id="header-sub" class="sub">KW <span id="header-kw"></span></div>
     </div>
     <div id="sync-chip" onclick="openSyncSettings()">○ kein Sync</div>
   </div>
@@ -339,6 +339,9 @@ function renderHeute() {
   const plan = getPlan(week, year);
   const entries = getEntries(week, year);
 
+  const kwEl = document.getElementById('header-kw');
+  if (kwEl) kwEl.textContent = `${week}/${year}`;
+
   const todayDay = new Date().getDay(); // 0=Sun,1=Mon,...6=Sat
   const dayNames = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
   const today = dayNames[todayDay];
@@ -440,11 +443,6 @@ function renderHeute() {
       <div style="margin-top:10px;font-size:12px;color:var(--text3)">HRmax ${DATA.settings.hrZones.max} bpm · <a href="#" onclick="openHRSettings();return false" style="color:var(--text2)">Anpassen</a></div>
     </div>
 
-    <div class="sec">Saison-Ziele</div>
-    <div class="card">
-      <div style="margin-bottom:8px">🏆 Hyrox Double – 2026/27</div>
-      <div style="color:var(--green)">🏁 Wings for Life 21 km – 10.05.2027</div>
-    </div>
   `;
   if (DATA.settings.stravaToken) {
     setTimeout(loadStravaActivities, 0);
