@@ -15,6 +15,8 @@ load_dotenv()
 logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s: %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
+log.info("ENV VARS: %s", [k for k in os.environ if 'TELEGRAM' in k or 'ANTHROPIC' in k or 'STRAVA' in k])
+
 BOT_TOKEN   = os.environ["TELEGRAM_BOT_TOKEN"]
 ALLOWED_UID = int(os.environ["TELEGRAM_ALLOWED_USER_ID"])
 ANTHROPIC_KEY = os.environ["ANTHROPIC_API_KEY"]
@@ -59,7 +61,7 @@ def _get_access_token() -> str:
         _save_tokens(tok)
     return tok["access_token"]
 
-def _strava(path: str, params: dict = None) -> dict | list:
+def _strava(path: str, params: dict = None):
     token = _get_access_token()
     url = f"https://www.strava.com/api/v3{path}"
     if params:
