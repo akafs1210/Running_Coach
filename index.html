@@ -351,6 +351,197 @@ function renderTab(name) {
   if (fn[name]) fn[name]();
 }
 
+// ── KRAFT FORM STATE ───────────────────────────────────────
+let kfState = { exercises: [], type: '', sets: 3, editId: null };
+
+function initKfState(type, sets) {
+  const exList = type === 'kraft_a' ? getExA() : getExB();
+  const lastW = getLastWeights(type);
+  kfState.type = type;
+  kfState.sets = sets;
+  kfState.editId = null;
+  kfState.exercises = exList.map(ex => ({
+    id: ex.id, name: ex.name, unit: ex.unit || 'kg/Wdh',
+    prevSets: lastW[ex.id] || [], currentSets: []
+  }));
+}
+
+function collectKfValues() {
+  kfState.exercises.forEach((ex, ei) => {
+    const nameEl = document.getElementById('exname' + ei);
+    if (nameEl) ex.name = nameEl.value;
+    const sets = [];
+    for (let si = 0; si < kfState.sets; si++) {
+      const sekEl  = document.getElementById(`ex${ei}_s${si}_sek`);
+      const kgEl   = document.getElementById(`ex${ei}_s${si}_kg`);
+      const repsEl = document.getElementById(`ex${ei}_s${si}_reps`);
+      if (sekEl)     sets.push({ sek: sekEl.value });
+      else if (kgEl) sets.push({ kg: kgEl.value, reps: repsEl?.value || '' });
+    }
+    ex.currentSets = sets;
+  });
+}
+
+function renderKfExRows() {
+  const sets = kfState.sets;
+  return kfState.exercises.map((ex, ei) => {
+    const isSek = isTimeUnit(ex.unit);
+    const setInputs = Array.from({length: sets}, (_, si) => {
+      const prev = ex.prevSets[si] || {};
+      const cur  = ex.currentSets[si] || {};
+      const inputs = isSek
+        ? `<input type="number" inputmode="numeric" placeholder="${prev.sek||'Sek'}" id="ex${ei}_s${si}_sek" value="${cur.sek||''}" style="width:80px" onfocus="this.placeholder=''">`
+        : `<input type="number" inputmode="decimal" placeholder="${prev.kg||'kg'}" id="ex${ei}_s${si}_kg" value="${cur.kg||''}" style="width:54px" onfocus="this.placeholder=''">
+          <input type="number" inputmode="numeric" placeholder="${prev.reps||'Wdh'}" id="ex${ei}_s${si}_reps" value="${cur.reps||''}" style="width:48px" onfocus="this.placeholder=''">`;
+      return `<div class="set-col"><div class="set-label">S${si+1}</div><div class="set-inputs">${inputs}</div></div>`;
+    }).join('');
+    const prevSummary = ex.prevSets.length
+      ? ex.prevSets.map(s => isSek ? `${s.sek||'?'}s` : `${s.kg||'?'}×${s.reps||'?'}`).join(' | ')
+      : '–';
+    const isFirst = ei === 0, isLast = ei === kfState.exercises.length - 1;
+    return `<div class="ex-row" id="kf-ex-${ei}">
+      <div class="ex-header">
+        <div style="display:flex;flex-direction:column;gap:1px;margin-right:6px">
+          <button onclick="kfMoveEx(${ei},-1)" style="background:none;border:none;color:${isFirst?'var(--border)':'var(--text3)'};font-size:11px;padding:1px 5px;cursor:${isFirst?'default':'pointer'};line-height:1" ${isFirst?'disabled':''}>▲</button>
+          <button onclick="kfMoveEx(${ei},1)" style="background:none;border:none;color:${isLast?'var(--border)':'var(--text3)'};font-size:11px;padding:1px 5px;cursor:${isLast?'default':'pointer'};line-height:1" ${isLast?'disabled':''}>▼</button>
+        </div>
+        <div style="flex:1;min-width:0">
+          <input type="text" value="${ex.name}" id="exname${ei}" style="border:none;background:transparent;font-weight:600;font-size:14px;color:var(--text1);width:100%;padding:0">
+          <div class="ex-prev">Letztes Mal: ${prevSummary}</div>
+        </div>
+        <button onclick="kfRemoveEx(${ei})" style="background:none;border:none;color:var(--text3);font-size:20px;padding:2px 8px;cursor:pointer;flex-shrink:0;line-height:1">✕</button>
+      </div>
+      <div class="sets-grid">${setInputs}</div>
+    </div>`;
+  }).join('');
+}
+
+function rerenderKfList() {
+  const el = document.getElementById('kf-ex-list');
+  if (el) el.innerHTML = renderKfExRows();
+}
+
+function kfMoveEx(idx, dir) {
+  collectKfValues();
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= kfState.exercises.length) return;
+  [kfState.exercises[idx], kfState.exercises[newIdx]] = [kfState.exercises[newIdx], kfState.exercises[idx]];
+  rerenderKfList();
+}
+
+function kfRemoveEx(idx) {
+  collectKfValues();
+  kfState.exercises.splice(idx, 1);
+  rerenderKfList();
+}
+
+function kfAddEx() {
+  collectKfValues();
+  kfState.exercises.push({ id: uid(), name: 'Neue Übung', unit: 'kg/Wdh', prevSets: [], currentSets: [] });
+  rerenderKfList();
+  setTimeout(() => {
+    const last = document.getElementById('kf-ex-' + (kfState.exercises.length - 1));
+    if (last) last.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const nameInput = document.getElementById('exname' + (kfState.exercises.length - 1));
+    if (nameInput) { nameInput.select(); }
+  }, 50);
+}
+
+function saveKraftNew() {
+  collectKfValues();
+  const exercises = kfState.exercises.map((ex, ei) => ({
+    id: ex.id,
+    name: document.getElementById('exname' + ei)?.value || ex.name,
+    sets: (ex.currentSets || []).map(s => ({
+      kg: s.kg || null, reps: s.reps || null, sek: s.sek || null
+    }))
+  }));
+  const kgw  = document.getElementById('k-kgw')?.value;
+  const date = document.getElementById('k-date')?.value || todayStr();
+  const feeling = document.getElementById('k-feeling')?.value || null;
+  const notes   = document.getElementById('k-notes')?.value || null;
+  const {week, year} = getISOWeek(new Date(date));
+
+  if (kfState.editId) {
+    const idx = DATA.entries.findIndex(e => e.id === kfState.editId);
+    if (idx >= 0) {
+      DATA.entries[idx] = { ...DATA.entries[idx], date, kw: week, yr: year,
+        kgw: kgw || DATA.entries[idx].kgw,
+        feeling: feeling || DATA.entries[idx].feeling,
+        notes: notes !== null ? notes : DATA.entries[idx].notes,
+        exercises, synced: false };
+    }
+    closeKraftEdit();
+    save(); trySync();
+    showToast('Gespeichert ✓');
+    renderHeute();
+    return;
+  }
+
+  const entry = { id: uid(), type: kfState.type, date, kw: week, yr: year,
+    kgw: kgw || null, feeling, notes, exercises, synced: false };
+  DATA.entries.push(entry);
+  if (kgw) DATA.entries.push({ id: uid(), type: 'gewicht', date, kw: week, yr: year,
+    kg: kgw, synced: false });
+  save(); trySync();
+  eintragenState.actType = null;
+  renderEintragen();
+  showToast('Gespeichert ✓');
+}
+
+function openKraftEdit(id) {
+  const entry = DATA.entries.find(e => e.id === id);
+  if (!entry) return;
+  const exs = entry.exercises || [];
+  const maxSets = exs.reduce((m, ex) => Math.max(m, (ex.sets||[]).length), 3);
+  kfState.type = entry.type;
+  kfState.editId = id;
+  kfState.sets = maxSets;
+  kfState.exercises = exs.map(ex => ({
+    id: ex.id || uid(), name: ex.name, unit: 'kg/Wdh', prevSets: [],
+    currentSets: (ex.sets || []).map(s => ({
+      kg: s.kg ?? s.v1 ?? '', reps: s.reps ?? s.v2 ?? '', sek: s.sek ?? ''
+    }))
+  }));
+  const label = entry.type === 'kraft_a' ? '💪 Kraft A – Push' : '🏋️ Kraft B – Pull';
+  const feelingBtns = Array.from({length:10}, (_,i) => {
+    const sel = String(i+1) === String(entry.feeling) ? ' sel' : '';
+    return `<button class="feeling-btn${sel}" onclick="setFeeling(${i+1},this)">${i+1}</button>`;
+  }).join('');
+  const ov = document.createElement('div');
+  ov.id = 'kraft-edit-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:1000;overflow-y:auto;padding:16px;box-sizing:border-box';
+  ov.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0;font-size:18px">${label} – Bearbeiten</h2>
+      <button onclick="closeKraftEdit()" style="font-size:24px;background:none;border:none;color:var(--text2);padding:4px 8px;cursor:pointer">✕</button>
+    </div>
+    <div class="card">
+      <div class="input-row" style="margin-bottom:12px">
+        <div class="form-group"><label>Datum</label><input type="date" id="k-date" value="${entry.date||todayStr()}"></div>
+        <div class="form-group"><label>Körpergewicht (kg)</label><input type="number" inputmode="decimal" id="k-kgw" placeholder="80" value="${entry.kgw||''}"></div>
+      </div>
+      <div id="kf-ex-list">${renderKfExRows()}</div>
+      <button onclick="kfAddEx()" style="width:100%;margin:10px 0 4px;padding:12px;font-size:14px;border:2px dashed var(--border);background:transparent;color:var(--text2);border-radius:10px;cursor:pointer">+ Übung hinzufügen</button>
+      <div class="form-group" style="margin-top:12px">
+        <label>Gefühl (1–10)</label>
+        <div class="feeling-row" id="feeling-row">${feelingBtns}</div>
+        <input type="hidden" id="k-feeling" value="${entry.feeling||''}">
+      </div>
+      <div class="form-group">
+        <label>Notizen</label>
+        <textarea id="k-notes" rows="2" placeholder="Notizen...">${entry.notes||''}</textarea>
+      </div>
+      <button class="primary" style="width:100%" onclick="saveKraftNew()">Änderungen speichern</button>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function closeKraftEdit() {
+  document.getElementById('kraft-edit-overlay')?.remove();
+  kfState.editId = null;
+}
+
 // ── HEUTE TAB ──────────────────────────────────────────────
 let homeAddOpen = false;
 let homeKW = null; // null = aktuelle KW
@@ -945,53 +1136,20 @@ function renderKraftManuellForm() {
 }
 
 function renderKraftForm(type, plan) {
-  const exList = type === 'kraft_a' ? getExA() : getExB();
-  const lastW = getLastWeights(type);
   const sets = numSets(plan);
+  initKfState(type, sets);
   const label = type === 'kraft_a' ? '💪 Kraft A – Push' : '🏋️ Kraft B – Pull';
-
-  const exRows = exList.map((ex, ei) => {
-    const last = lastW[ex.id] || [];
-    const isSek = isTimeUnit(ex.unit);
-    const setInputs = Array.from({length: sets}, (_, si) => {
-      const prev = last[si] || {};
-      const inputs = isSek
-        ? `<input type="number" inputmode="numeric" placeholder="${prev.sek||'Sek'}" id="ex${ei}_s${si}_sek" value="" style="width:80px" onfocus="this.placeholder=''">`
-        : `<input type="number" inputmode="decimal" placeholder="${prev.kg||'kg'}" id="ex${ei}_s${si}_kg" value="" style="width:54px" onfocus="this.placeholder=''">
-          <input type="number" inputmode="numeric" placeholder="${prev.reps||'Wdh'}" id="ex${ei}_s${si}_reps" value="" style="width:48px" onfocus="this.placeholder=''">`;
-      return `<div class="set-col">
-        <div class="set-label">S${si+1}</div>
-        <div class="set-inputs">${inputs}</div>
-      </div>`;
-    }).join('');
-
-    const prevSummary = last.length
-      ? last.map(s => isSek ? `${s.sek||'?'}s` : `${s.kg||'?'}×${s.reps||'?'}`).join(' | ')
-      : '–';
-
-    return `<div class="ex-row">
-      <div class="ex-header">
-        <div>
-          <div class="ex-name">${ex.id.toUpperCase()}: <span id="exname${ei}" contenteditable="true" onblur="updateExName(${ei},'${type}')">${ex.name}</span></div>
-          <div class="ex-prev">Letztes Mal: ${prevSummary}</div>
-        </div>
-        <div style="font-size:11px;color:var(--text3)">${ex.unit}</div>
-      </div>
-      <div class="sets-grid">${setInputs}</div>
-    </div>`;
-  }).join('');
-
   const feelingBtns = Array.from({length:10}, (_,i) =>
     `<button class="feeling-btn" onclick="setFeeling(${i+1},this)">${i+1}</button>`
   ).join('');
-
   return `<div class="card">
     <h2>${label}</h2>
     <div class="input-row" style="margin-bottom:12px">
       <div class="form-group"><label>Datum</label><input type="date" id="k-date" value="${todayStr()}"></div>
       <div class="form-group"><label>Körpergewicht (kg)</label><input type="number" inputmode="decimal" id="k-kgw" placeholder="80"></div>
     </div>
-    ${exRows}
+    <div id="kf-ex-list">${renderKfExRows()}</div>
+    <button onclick="kfAddEx()" style="width:100%;margin:10px 0 4px;padding:12px;font-size:14px;border:2px dashed var(--border);background:transparent;color:var(--text2);border-radius:10px;cursor:pointer">+ Übung hinzufügen</button>
     <div class="form-group" style="margin-top:12px">
       <label>Gefühl (1–10)</label>
       <div class="feeling-row" id="feeling-row">${feelingBtns}</div>
@@ -1001,19 +1159,8 @@ function renderKraftForm(type, plan) {
       <label>Notizen</label>
       <textarea id="k-notes" rows="2" placeholder="Notizen..."></textarea>
     </div>
-    <button class="primary" style="width:100%" onclick="saveKraft('${type}',${exList.length},${sets})">Speichern</button>
+    <button class="primary" style="width:100%" onclick="saveKraftNew()">Speichern</button>
   </div>`;
-}
-
-function updateExName(idx, type) {
-  const el = document.getElementById('exname'+idx);
-  if (!el) return;
-  const name = el.textContent.trim();
-  const exList = type === 'kraft_a' ? (DATA.settings.customExA || [...EX_A]) : (DATA.settings.customExB || [...EX_B]);
-  if (exList[idx]) exList[idx] = {...exList[idx], name};
-  if (type === 'kraft_a') DATA.settings.customExA = exList;
-  else DATA.settings.customExB = exList;
-  save();
 }
 
 function setFeeling(val, btn) {
@@ -1022,40 +1169,6 @@ function setFeeling(val, btn) {
   document.getElementById('k-feeling').value = val;
 }
 
-function saveKraft(type, exCount, sets) {
-  const exList = type === 'kraft_a' ? getExA() : getExB();
-  const exercises = [];
-  for (let ei = 0; ei < exCount; ei++) {
-    const exSets = [];
-    for (let si = 0; si < sets; si++) {
-      const sekEl = document.getElementById(`ex${ei}_s${si}_sek`);
-      const kgEl  = document.getElementById(`ex${ei}_s${si}_kg`);
-      const repsEl= document.getElementById(`ex${ei}_s${si}_reps`);
-      if (sekEl)      exSets.push({ sek: sekEl.value || null });
-      else if (kgEl)  exSets.push({ kg: kgEl.value || null, reps: repsEl?.value || null });
-    }
-    exercises.push({ id: exList[ei]?.id || String(ei), name: exList[ei]?.name || '', sets: exSets });
-  }
-
-  const kgw = document.getElementById('k-kgw')?.value;
-  const date = document.getElementById('k-date')?.value || todayStr();
-
-  const entry = {
-    id: uid(), kw: eintragenState.kw, yr: eintragenState.yr,
-    type, date, kgw: kgw || null,
-    feeling: document.getElementById('k-feeling')?.value || null,
-    notes: document.getElementById('k-notes')?.value || null,
-    exercises, synced: false
-  };
-
-  DATA.entries.push(entry);
-  if (kgw) DATA.entries.push({id: uid(), kw: eintragenState.kw, yr: eintragenState.yr, type:'gewicht', date, kg: kgw, synced: false});
-  save();
-  trySync();
-  eintragenState.actType = null;
-  renderEintragen();
-  showToast('Gespeichert ✓');
-}
 
 function renderLaufForm(type, plan) {
   const labels = {longrun:'🏃 Longrun', threshold:'🔥 Threshold', interval:'⚡ Intervall', z2:'🌿 Z2 Lauf'};
@@ -1291,9 +1404,9 @@ function entryDetail(e) {
   return '';
 }
 
-function toggleEntryDetail(id) {
-  const d = document.getElementById('ed-'+id);
-  const c = document.getElementById('ec-'+id);
+function toggleEntryDetail(el) {
+  const d = el.querySelector('.entry-detail');
+  const c = el.querySelector('.entry-chevron');
   if (!d) return;
   const open = d.style.display !== 'none';
   d.style.display = open ? 'none' : 'block';
@@ -1304,19 +1417,30 @@ function entryHTML(e) {
   const summary = entrySummary(e);
   const detail = entryDetail(e);
   const hasDetail = !!detail;
-  return `<div class="entry-item" style="flex-direction:column;cursor:${hasDetail?'pointer':'default'}" ${hasDetail?`onclick="toggleEntryDetail('${e.id}')"`:''}}>
+  const isKraft = ['kraft_a','kraft_b'].includes(e.type);
+  const editBtn = isKraft
+    ? `<button onclick="event.stopPropagation();openKraftEdit('${e.id}')" style="background:none;border:none;color:var(--text3);font-size:15px;padding:4px 6px;cursor:pointer" title="Bearbeiten">✏</button>`
+    : '';
+  const detailContent = hasDetail
+    ? `<div class="entry-detail" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+        ${detail}
+        ${e.notes?`<div style="font-size:12px;color:var(--text2);margin-top:6px;font-style:italic">${e.notes}</div>`:''}
+      </div>`
+    : '';
+  return `<div class="entry-item" style="flex-direction:column;align-items:stretch;cursor:${hasDetail?'pointer':'default'}" ${hasDetail?'onclick="toggleEntryDetail(this)"':''}}>
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600">${TYPE_LABELS[e.type]||e.type}</div>
         <div class="entry-meta">${fmtDate(e.date)}${summary?' · '+summary:''}</div>
         ${e.stravaId?'<div style="font-size:11px;color:var(--text3)">Strava</div>':''}
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-        ${hasDetail?`<span id="ec-${e.id}" style="color:var(--text3);font-size:18px;transition:transform .2s">›</span>`:''}
+      <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+        ${editBtn}
+        ${hasDetail?'<span class="entry-chevron" style="color:var(--text3);font-size:18px;transition:transform .2s">›</span>':''}
         <button class="delete-btn" onclick="event.stopPropagation();deleteEntry('${e.id}')">✕</button>
       </div>
     </div>
-    ${hasDetail?`<div id="ed-${e.id}" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:8px">${detail}${e.notes?`<div style="font-size:12px;color:var(--text2);margin-top:6px;font-style:italic">${e.notes}</div>`:''}</div>`:''}
+    ${detailContent}
   </div>`;
 }
 
@@ -1898,7 +2022,7 @@ async function getStravaToken() {
     })
   });
   const d = await r.json();
-  if (!d.access_token) throw new Error('Token-Refresh fehlgeschlagen');
+  if (!d.access_token) throw new Error('Token-Refresh fehlgeschlagen: ' + JSON.stringify(d));
   DATA.settings.stravaToken = d.access_token;
   DATA.settings.stravaTokenExpires = d.expires_at;
   DATA.settings.stravaRefreshToken = d.refresh_token || s.stravaRefreshToken;
