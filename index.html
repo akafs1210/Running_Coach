@@ -1364,7 +1364,13 @@ function exportKWText() {
     planByKW[key] = p;
   });
 
-  const sortedKeys = Object.keys(kwMap).sort();
+  const fromSel = document.getElementById('export-from');
+  const toSel   = document.getElementById('export-to');
+  const fromKey = fromSel ? fromSel.value : null;
+  const toKey   = toSel   ? toSel.value   : null;
+
+  const sortedKeys = Object.keys(kwMap).sort()
+    .filter(k => (!fromKey || k >= fromKey) && (!toKey || k <= toKey));
   const lines = [];
   lines.push('TRAININGSÜBERSICHT – KW-EXPORT');
   lines.push(`Erstellt: ${new Date().toLocaleDateString('de-AT')} ${new Date().toLocaleTimeString('de-AT', {hour:'2-digit',minute:'2-digit'})}`);
@@ -1473,7 +1479,10 @@ function exportKWText() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `training_export_${new Date().toISOString().slice(0,10)}.txt`;
+  const rangeStr = (fromKey && toKey && fromKey !== toKey)
+    ? `KW${parseInt(fromKey.split('-')[1])}-KW${parseInt(toKey.split('-')[1])}_${toKey.split('-')[0]}`
+    : new Date().toISOString().slice(0,10);
+  a.download = `training_export_${rangeStr}.txt`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1552,10 +1561,39 @@ function renderFortschritt() {
       ).join('') || '<div style="color:var(--text3);font-size:14px">Noch keine Kraftdaten.</div>'}
     </div>
 
-    <div style="display:flex;gap:10px;justify-content:center;padding:16px;flex-wrap:wrap">
-      <button onclick="exportKWText()" style="font-size:14px;padding:12px 24px">
-        Export KW-Übersicht
-      </button>
+    <div class="sec">Export</div>
+    <div class="card" style="padding:14px">
+      ${(() => {
+        const kwKeys = [...new Set(
+          DATA.entries.filter(e => e.date && e.type !== 'gewicht')
+            .map(e => `${e.yr}-${String(e.kw).padStart(2,'0')}`)
+        )].sort();
+        const opts = kwKeys.map(k => {
+          const [yr, kw] = k.split('-');
+          return `<option value="${k}">KW ${parseInt(kw)} / ${yr}</option>`;
+        }).join('');
+        return `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+            <div>
+              <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Von</div>
+              <select id="export-from" style="width:100%">${opts}</select>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text2);margin-bottom:4px">Bis</div>
+              <select id="export-to" style="width:100%">${opts.replace(/(<option[^>]+>)/g, (m, tag, offset) => {
+                // pre-select last option for "to"
+                return tag;
+              })}</select>
+            </div>
+          </div>
+          <button onclick="exportKWText()" style="width:100%;font-size:14px;padding:12px">
+            Als Textdatei exportieren
+          </button>
+        `;
+      })()}
+    </div>
+
+    <div style="text-align:center;padding:16px">
       <button onclick="switchTab('settings',document.getElementById('btn-settings'))" style="font-size:14px;padding:12px 24px">
         ⚙ Einstellungen öffnen
       </button>
@@ -1566,6 +1604,8 @@ function renderFortschritt() {
     drawWeightChart();
     drawRunChart();
     drawRideChart();
+    const toSel = document.getElementById('export-to');
+    if (toSel && toSel.options.length) toSel.selectedIndex = toSel.options.length - 1;
   }, 50);
 }
 
