@@ -107,7 +107,7 @@ canvas{display:block;width:100%;border-radius:10px;background:var(--bg2)}
 /* Entry list */
 .entry-item{background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start}
 .entry-meta{font-size:12px;color:var(--text3);margin-top:3px}
-.delete-btn{background:#300;color:var(--red);border:none;border-radius:8px;padding:6px 10px;font-size:12px;flex-shrink:0;margin-left:8px}
+.delete-btn{background:#300;color:var(--red);border:none;border-radius:8px;padding:0;font-size:18px;flex-shrink:0;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
 /* Form helpers */
 .form-group{margin-bottom:14px}
 .input-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -1501,7 +1501,7 @@ function entryHTML(e) {
   const hasDetail = !!detail;
   const isKraft = ['kraft_a','kraft_b'].includes(e.type);
   const editBtn = isKraft
-    ? `<button onclick="event.stopPropagation();openKraftEdit('${e.id}')" style="background:none;border:none;color:var(--text3);font-size:15px;padding:4px 6px;cursor:pointer" title="Bearbeiten">✏</button>`
+    ? `<button onclick="event.stopPropagation();openKraftEdit('${e.id}')" style="background:none;border:none;color:var(--text3);font-size:20px;padding:0;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" title="Bearbeiten">✏</button>`
     : '';
   const detailContent = hasDetail
     ? `<div class="entry-detail" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
@@ -1516,9 +1516,9 @@ function entryHTML(e) {
         <div class="entry-meta">${fmtDate(e.date)}${summary?' · '+summary:''}</div>
         ${e.stravaId?'<div style="font-size:11px;color:var(--text3)">Strava</div>':''}
       </div>
-      <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:2px;flex-shrink:0">
         ${editBtn}
-        ${hasDetail?'<span class="entry-chevron" style="color:var(--text3);font-size:18px;transition:transform .2s">›</span>':''}
+        ${hasDetail?'<span class="entry-chevron" style="color:var(--text3);font-size:22px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;transition:transform .2s">›</span>':''}
         <button class="delete-btn" onclick="event.stopPropagation();deleteEntry('${e.id}')">✕</button>
       </div>
     </div>
