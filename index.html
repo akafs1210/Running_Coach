@@ -481,7 +481,7 @@ function renderHeute() {
     </div>
     <div id="home-entries">${entriesHTML}</div>
 
-    ${DATA.settings.stravaToken ? `
+    ${(DATA.settings.stravaRefreshToken || DATA.settings.stravaToken) ? `
     <div class="sec" style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
       <span>Strava – letzte 7 Tage</span>
       <button onclick="loadStravaActivities()" style="font-size:11px;padding:4px 10px;border-radius:20px">↻ Neu laden</button>
@@ -489,7 +489,7 @@ function renderHeute() {
     <div id="strava-list"><div style="color:var(--text3);font-size:14px;text-align:center;padding:16px">Lade…</div></div>
     ` : ''}
   `;
-  if (DATA.settings.stravaToken) {
+  if (DATA.settings.stravaRefreshToken || DATA.settings.stravaToken) {
     setTimeout(loadStravaActivities, 0);
   }
 }
@@ -1871,26 +1871,58 @@ const STRAVA_TYPE_MAP = {
   Surfing:        {emoji:'🏄', label:'Surfen',          type:'surfen'},
 };
 
-function saveStravaToken() {
-  const tok = document.getElementById('strava-token-input')?.value?.trim();
-  DATA.settings.stravaToken = tok || '';
+function saveStravaOAuth() {
+  DATA.settings.stravaClientId     = document.getElementById('strava-client-id')?.value?.trim() || '';
+  DATA.settings.stravaClientSecret = document.getElementById('strava-client-secret')?.value?.trim() || '';
+  DATA.settings.stravaRefreshToken = document.getElementById('strava-refresh-token')?.value?.trim() || '';
   save();
-  showToast(tok ? 'Token gespeichert ✓' : 'Token gelöscht');
+  showToast('Strava-Einstellungen gespeichert ✓');
   renderHeute();
 }
 
+async function getStravaToken() {
+  const s = DATA.settings;
+  const now = Math.floor(Date.now() / 1000);
+  if (s.stravaToken && s.stravaTokenExpires && s.stravaTokenExpires > now + 300) {
+    return s.stravaToken;
+  }
+  if (!s.stravaClientId || !s.stravaClientSecret || !s.stravaRefreshToken) return null;
+  const r = await fetch('https://www.strava.com/oauth/token', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      client_id: s.stravaClientId,
+      client_secret: s.stravaClientSecret,
+      refresh_token: s.stravaRefreshToken,
+      grant_type: 'refresh_token'
+    })
+  });
+  const d = await r.json();
+  if (!d.access_token) throw new Error('Token-Refresh fehlgeschlagen');
+  DATA.settings.stravaToken = d.access_token;
+  DATA.settings.stravaTokenExpires = d.expires_at;
+  DATA.settings.stravaRefreshToken = d.refresh_token || s.stravaRefreshToken;
+  save();
+  return d.access_token;
+}
+
 function loadStravaActivities() {
-  const token = DATA.settings.stravaToken;
   const el = document.getElementById('strava-list');
-  if (!el || !token) return;
+  if (!el) return;
+  const s = DATA.settings;
+  if (!s.stravaRefreshToken && !s.stravaToken) return;
 
   el.innerHTML = '<div style="color:var(--text3);font-size:14px;text-align:center;padding:16px">⟳ Lade Strava…</div>';
 
   const since = Math.floor((Date.now() - 7 * 86400000) / 1000);
-  fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=15&after=${since}`, {
-    headers: { Authorization: `Bearer ${token}` }
+  getStravaToken().then(token => {
+    if (!token) { el.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:16px">Strava nicht verbunden.</div>'; return; }
+    return fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=15&after=${since}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
   })
   .then(r => {
+    if (!r) return null;
     if (r.status === 401) throw new Error('Token abgelaufen');
     return r.json();
   })
@@ -2162,11 +2194,17 @@ function renderSettings() {
   document.getElementById('tab-settings').innerHTML = `
     <div class="sec">Strava</div>
     <div class="card">
-      <div class="form-group"><label>Access Token</label>
-        <input type="text" id="strava-token-input" placeholder="Aus .tokens.json einfügen…" value="${s.stravaToken||''}" style="font-family:monospace;font-size:12px">
+      <div class="form-group"><label>Client ID</label>
+        <input type="text" id="strava-client-id" placeholder="z.B. 275889" value="${s.stravaClientId||''}" style="font-family:monospace;font-size:12px">
       </div>
-      <button onclick="saveStravaToken()" style="width:100%;margin-bottom:8px">Token speichern</button>
-      <div style="font-size:12px;color:var(--text3)">Token aus <code>.tokens.json</code> → access_token. Gültig 6 h.</div>
+      <div class="form-group"><label>Client Secret</label>
+        <input type="password" id="strava-client-secret" placeholder="aus Strava API-Einstellungen" value="${s.stravaClientSecret||''}" style="font-family:monospace;font-size:12px">
+      </div>
+      <div class="form-group"><label>Refresh Token</label>
+        <input type="password" id="strava-refresh-token" placeholder="aus .tokens.json → refresh_token" value="${s.stravaRefreshToken||''}" style="font-family:monospace;font-size:12px">
+      </div>
+      <button onclick="saveStravaOAuth()" style="width:100%;margin-bottom:8px">Speichern</button>
+      <div style="font-size:12px;color:var(--text3)">Access Token wird automatisch erneuert. Refresh Token läuft nicht ab.</div>
     </div>
 
     <div class="sec">GitHub Gist Sync</div>
