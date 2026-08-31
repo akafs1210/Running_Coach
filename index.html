@@ -449,10 +449,11 @@ function _kfUpdateSearch(q) {
   const qOrig = document.getElementById('kf-search-input')?.value?.trim() || q;
   q = q.trim().toLowerCase();
   if (!q) { el.innerHTML = ''; el.style.display = 'none'; return; }
-  const matches = EXERCISE_DB.filter(e =>
-    e.name.toLowerCase().includes(q) || e.cat.toLowerCase().includes(q) ||
-    (q === 'kb' && e.cat === 'Kettlebell')
-  ).slice(0, 14);
+  const words = q.split(/\s+/).filter(Boolean);
+  const matches = EXERCISE_DB.filter(e => {
+    const text = (e.name + ' ' + e.cat).toLowerCase();
+    return words.every(w => text.includes(w));
+  }).slice(0, 14);
   const items = matches.map(e =>
     `<div onclick="kfAddExFromDB('${e.name.replace(/'/g,"\\'")}','${e.unit}')"
       style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px;display:flex;justify-content:space-between;align-items:center"
@@ -1128,9 +1129,11 @@ function _updateManuellSearch(q) {
   if (!el) return;
   q = q.trim().toLowerCase();
   if (!q) { el.innerHTML = ''; el.style.display='none'; return; }
-  const matches = EXERCISE_DB.filter(e =>
-    e.name.toLowerCase().includes(q) || e.cat.toLowerCase().includes(q)
-  ).slice(0, 12);
+  const words = q.split(/\s+/).filter(Boolean);
+  const matches = EXERCISE_DB.filter(e => {
+    const text = (e.name + ' ' + e.cat).toLowerCase();
+    return words.every(w => text.includes(w));
+  }).slice(0, 12);
   const alreadyAdded = new Set(manuelleExs.map(e => e.name));
   const items = matches.map(e =>
     `<div onclick="addManuelleEx('${e.name.replace(/'/g,"\\'")}','${e.unit}')"
