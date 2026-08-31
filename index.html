@@ -83,8 +83,8 @@ h3{font-size:15px;font-weight:600;margin-bottom:8px;color:var(--text2)}
 .sets-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .set-col{display:flex;flex-direction:column;gap:4px;align-items:center}
 .set-label{font-size:11px;color:var(--text3)}
-.set-inputs{display:flex;gap:4px}
-.set-inputs input{width:52px;padding:8px 4px;font-size:16px}
+.set-inputs{display:flex;gap:3px}
+.set-inputs input{width:42px;padding:8px 2px;font-size:16px;text-align:center}
 /* Activity type buttons */
 .act-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
 .act-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px 8px;border-radius:12px;min-height:80px;font-size:12px;text-align:center;line-height:1.2}
@@ -390,9 +390,9 @@ function renderKfExRows() {
       const prev = ex.prevSets[si] || {};
       const cur  = ex.currentSets[si] || {};
       const inputs = isSek
-        ? `<input type="number" inputmode="numeric" placeholder="${prev.sek||'Sek'}" id="ex${ei}_s${si}_sek" value="${cur.sek||''}" style="width:80px" onfocus="this.placeholder=''">`
-        : `<input type="number" inputmode="decimal" placeholder="${prev.kg||'kg'}" id="ex${ei}_s${si}_kg" value="${cur.kg||''}" style="width:54px" onfocus="this.placeholder=''">
-          <input type="number" inputmode="numeric" placeholder="${prev.reps||'Wdh'}" id="ex${ei}_s${si}_reps" value="${cur.reps||''}" style="width:48px" onfocus="this.placeholder=''">`;
+        ? `<input type="number" inputmode="numeric" placeholder="${prev.sek||'Sek'}" id="ex${ei}_s${si}_sek" value="${cur.sek||''}" style="width:72px" onfocus="this.placeholder=''">`
+        : `<input type="number" inputmode="decimal" placeholder="${prev.kg||'kg'}" id="ex${ei}_s${si}_kg" value="${cur.kg||''}" onfocus="this.placeholder=''">
+          <input type="number" inputmode="numeric" placeholder="${prev.reps||'Wdh'}" id="ex${ei}_s${si}_reps" value="${cur.reps||''}" onfocus="this.placeholder=''">`;
       return `<div class="set-col"><div class="set-label">S${si+1}</div><div class="set-inputs">${inputs}</div></div>`;
     }).join('');
     const prevSummary = ex.prevSets.length
@@ -510,7 +510,7 @@ function openKraftEdit(id) {
   }).join('');
   const ov = document.createElement('div');
   ov.id = 'kraft-edit-overlay';
-  ov.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:1000;overflow-y:auto;padding:16px;box-sizing:border-box';
+  ov.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:1000;overflow-y:auto;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);box-sizing:border-box';
   ov.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <h2 style="margin:0;font-size:18px">${label} – Bearbeiten</h2>
