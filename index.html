@@ -1248,10 +1248,17 @@ function entryDetail(e) {
     if (!e.exercises?.length) return '<div style="color:var(--text3);font-size:13px">Keine Übungsdaten</div>';
     const rows = e.exercises.map(ex => {
       const sets = (ex.sets||[]).map((s,si) => {
-        if (s.sek) return `<span style="color:var(--text2)">S${si+1}:</span> ${s.sek}s`;
-        if (s.kg || s.reps) return `<span style="color:var(--text2)">S${si+1}:</span> ${s.kg||'?'}kg×${s.reps||'?'}`;
+        // Unterstützt beide Formate: {kg,reps} (alte Kraft-Form) und {v1,v2} (manuell/historisch)
+        const kg   = s.kg   ?? s.v1 ?? '';
+        const reps = s.reps ?? s.v2 ?? '';
+        const sek  = s.sek  ?? '';
+        const lbl  = `<span style="color:var(--text2)">S${si+1}:</span>`;
+        if (sek)                    return `${lbl} ${sek}s`;
+        if (kg && reps)             return `${lbl} ${kg}kg × ${reps}`;
+        if (kg && !reps)            return `${lbl} ${kg}s`;
+        if (!kg && reps)            return `${lbl} ${reps} Wdh`;
         return '';
-      }).filter(Boolean).join('  ');
+      }).filter(Boolean).join('  &nbsp; ');
       return `<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px">
         <div style="font-weight:600;margin-bottom:2px">${ex.name}</div>
         <div style="color:var(--text2)">${sets||'–'}</div>
