@@ -1680,14 +1680,15 @@ function loadStravaActivities() {
 function importStrava(act) {
   const meta = STRAVA_TYPE_MAP[act.type] || {type: null};
   if (!meta.type) return;
-  const {week, year} = currentKW();
+  const actDate = act.start_date_local?.slice(0,10) || new Date().toISOString().slice(0,10);
+  const {week, year} = getISOWeek(new Date(actDate));
   const km = act.distance > 0 ? (act.distance/1000).toFixed(2) : '';
   const mins = Math.round(act.moving_time / 60);
   const entry = {
     id: uid(),
     stravaId: act.id,
     type: meta.type,
-    date: act.start_date_local?.slice(0,10) || new Date().toISOString().slice(0,10),
+    date: actDate,
     kw: week, yr: year,
     km: km,
     timeMin: mins,
@@ -1974,7 +1975,21 @@ function checkForUpdate() {
     .catch(() => {});
 }
 
+function fixEntryKW() {
+  // Korrigiert Einträge bei denen kw/yr nicht zum Datum passt (z.B. Strava-Import-Bug)
+  let fixed = 0;
+  DATA.entries.forEach(e => {
+    if (!e.date) return;
+    const {week, year} = getISOWeek(new Date(e.date));
+    if (e.kw !== week || e.yr !== year) {
+      e.kw = week; e.yr = year; e.synced = false; fixed++;
+    }
+  });
+  if (fixed > 0) { save(); console.log(`KW-Fix: ${fixed} Einträge korrigiert`); }
+}
+
 function init() {
+  fixEntryKW();
   renderHeute();
   updateSyncChip();
   if (DATA.settings.gistToken) {
