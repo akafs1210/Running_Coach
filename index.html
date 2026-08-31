@@ -1441,7 +1441,7 @@ function drawRunChart() {
 
   const keys = Object.keys(byWeek).sort();
   const bars = keys.map(k => ({ label: 'KW'+parseInt(k.split('-')[1]), ist: byWeek[k], soll: planByWeek[k]||0 }));
-  drawBarChart(canvas, bars, 'var(--green)');
+  drawBarChart(canvas, bars, '#4a9eff', 'km');
 }
 
 function drawRideChart() {
@@ -1454,7 +1454,7 @@ function drawRideChart() {
   });
   const keys = Object.keys(byWeek).sort();
   const bars = keys.map(k => ({ label: 'KW'+parseInt(k.split('-')[1]), ist: byWeek[k], soll: 0 }));
-  drawBarChart(canvas, bars, 'var(--blue)');
+  drawBarChart(canvas, bars, '#2979ff', 'km');
 }
 
 function drawLineChart(canvas, data, color, opts={}) {
@@ -1532,13 +1532,51 @@ function drawLineChart(canvas, data, color, opts={}) {
   });
 }
 
-function drawBarChart(canvas, data, color) {
+function drawBarChart(canvas, data, color, unit='') {
   const W = canvas.offsetWidth || 300;
   const H = parseInt(canvas.getAttribute('height')) || 140;
   canvas.width = W * window.devicePixelRatio;
   canvas.height = H * window.devicePixelRatio;
   const ctx = canvas.getContext('2d');
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  // Hover-Tooltip (nur Desktop)
+  canvas._barData = data;
+  canvas._barUnit = unit;
+  if (!canvas._tooltipBound) {
+    canvas._tooltipBound = true;
+    let tip = document.getElementById('bar-tooltip');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.id = 'bar-tooltip';
+      tip.style.cssText = 'position:fixed;background:#222;color:#fff;padding:6px 10px;border-radius:8px;font-size:13px;pointer-events:none;display:none;z-index:9999;border:1px solid #444';
+      document.body.appendChild(tip);
+    }
+    canvas.addEventListener('mousemove', ev => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = ev.clientX - rect.left;
+      const cW2 = rect.width - 36;
+      const n = canvas._barData.length;
+      if (!n) return;
+      const bSlot = cW2 / n;
+      const idx = Math.floor((mx - 30) / bSlot);
+      if (idx >= 0 && idx < n) {
+        const d = canvas._barData[idx];
+        const u = canvas._barUnit;
+        let txt = `<strong>${d.label}</strong>: ${d.ist.toFixed(1)} ${u}`;
+        if (d.soll > 0) txt += ` <span style="color:#aaa">(Ziel: ${d.soll} ${u})</span>`;
+        tip.innerHTML = txt;
+        tip.style.display = 'block';
+        tip.style.left = (ev.clientX + 12) + 'px';
+        tip.style.top  = (ev.clientY - 28) + 'px';
+      } else {
+        tip.style.display = 'none';
+      }
+    });
+    canvas.addEventListener('mouseleave', () => {
+      document.getElementById('bar-tooltip').style.display = 'none';
+    });
+  }
 
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(0,0,W,H);
@@ -1999,6 +2037,18 @@ function importHistoricalData() {
   if (added > 0) { save(); console.log('Historische Daten importiert:', added, 'Einträge'); }
 }
 
+function importWeightData() {
+  if (DATA.settings.weightImported) return;
+  const weights = [{"id":"3948d6b5-d76","type":"gewicht","date":"2026-08-22","kw":34,"yr":2026,"kg":"80.0","notes":"","synced":false},{"id":"51332ad2-5eb","type":"gewicht","date":"2026-08-12","kw":33,"yr":2026,"kg":"81.0","notes":"","synced":false},{"id":"84c77bb4-173","type":"gewicht","date":"2026-08-06","kw":32,"yr":2026,"kg":"80.3","notes":"","synced":false},{"id":"90ff19b6-5bf","type":"gewicht","date":"2026-07-20","kw":30,"yr":2026,"kg":"81.1","notes":"","synced":false},{"id":"057066a4-fba","type":"gewicht","date":"2026-07-15","kw":29,"yr":2026,"kg":"80.1","notes":"","synced":false},{"id":"b8070aa1-8e0","type":"gewicht","date":"2026-07-09","kw":28,"yr":2026,"kg":"80.6","notes":"","synced":false},{"id":"5964263f-1a2","type":"gewicht","date":"2026-07-08","kw":28,"yr":2026,"kg":"80.9","notes":"","synced":false},{"id":"4a861253-ca6","type":"gewicht","date":"2026-07-06","kw":28,"yr":2026,"kg":"80.4","notes":"","synced":false},{"id":"34fdef3e-fdb","type":"gewicht","date":"2026-06-30","kw":27,"yr":2026,"kg":"80.5","notes":"","synced":false},{"id":"efecfcb5-35d","type":"gewicht","date":"2026-06-24","kw":26,"yr":2026,"kg":"80.6","notes":"","synced":false},{"id":"38fa28dc-f5f","type":"gewicht","date":"2026-06-23","kw":26,"yr":2026,"kg":"81.1","notes":"","synced":false},{"id":"48decafb-51f","type":"gewicht","date":"2026-06-21","kw":25,"yr":2026,"kg":"81.9","notes":"","synced":false},{"id":"19a36d36-843","type":"gewicht","date":"2026-06-19","kw":25,"yr":2026,"kg":"80.2","notes":"","synced":false},{"id":"2d19c5b0-c7a","type":"gewicht","date":"2026-06-18","kw":25,"yr":2026,"kg":"79.9","notes":"","synced":false},{"id":"717f9413-594","type":"gewicht","date":"2026-06-16","kw":25,"yr":2026,"kg":"81.1","notes":"","synced":false},{"id":"c0fa0520-dae","type":"gewicht","date":"2026-06-14","kw":24,"yr":2026,"kg":"80.4","notes":"","synced":false},{"id":"fd909565-a7b","type":"gewicht","date":"2026-06-11","kw":24,"yr":2026,"kg":"79.8","notes":"","synced":false},{"id":"81e9dfa5-f47","type":"gewicht","date":"2026-06-10","kw":24,"yr":2026,"kg":"80.4","notes":"","synced":false},{"id":"3e0e072d-90f","type":"gewicht","date":"2026-05-26","kw":22,"yr":2026,"kg":"79.8","notes":"","synced":false},{"id":"699e24d8-686","type":"gewicht","date":"2026-05-24","kw":21,"yr":2026,"kg":"79.7","notes":"","synced":false},{"id":"efd57f37-e41","type":"gewicht","date":"2026-05-23","kw":21,"yr":2026,"kg":"79.9","notes":"","synced":false},{"id":"fbedb8a6-06a","type":"gewicht","date":"2026-05-21","kw":21,"yr":2026,"kg":"79.9","notes":"","synced":false},{"id":"f58f46a3-9d5","type":"gewicht","date":"2026-05-20","kw":21,"yr":2026,"kg":"79.8","notes":"","synced":false},{"id":"d23723bb-a90","type":"gewicht","date":"2026-05-19","kw":21,"yr":2026,"kg":"79.1","notes":"","synced":false},{"id":"cb671dea-214","type":"gewicht","date":"2026-05-18","kw":21,"yr":2026,"kg":"80.6","notes":"","synced":false},{"id":"ef73c9a0-7b5","type":"gewicht","date":"2026-05-17","kw":20,"yr":2026,"kg":"80.3","notes":"","synced":false},{"id":"58949f61-cc5","type":"gewicht","date":"2026-05-16","kw":20,"yr":2026,"kg":"79.0","notes":"","synced":false},{"id":"f168227d-c46","type":"gewicht","date":"2026-05-13","kw":20,"yr":2026,"kg":"80.3","notes":"","synced":false},{"id":"72f0fbab-29a","type":"gewicht","date":"2026-05-12","kw":20,"yr":2026,"kg":"78.9","notes":"","synced":false},{"id":"bb8a5ff9-304","type":"gewicht","date":"2026-05-11","kw":20,"yr":2026,"kg":"79.4","notes":"","synced":false},{"id":"c90fea12-345","type":"gewicht","date":"2026-05-10","kw":19,"yr":2026,"kg":"82.3","notes":"","synced":false},{"id":"f273d919-08e","type":"gewicht","date":"2026-05-08","kw":19,"yr":2026,"kg":"80.1","notes":"","synced":false},{"id":"7c7df384-6f8","type":"gewicht","date":"2026-05-07","kw":19,"yr":2026,"kg":"80.0","notes":"","synced":false},{"id":"20564535-59f","type":"gewicht","date":"2026-05-06","kw":19,"yr":2026,"kg":"81.1","notes":"","synced":false},{"id":"7125ddce-2ac","type":"gewicht","date":"2026-05-05","kw":19,"yr":2026,"kg":"80.3","notes":"","synced":false},{"id":"c07e5445-bda","type":"gewicht","date":"2026-05-03","kw":18,"yr":2026,"kg":"79.5","notes":"","synced":false},{"id":"4bcef550-e53","type":"gewicht","date":"2026-05-02","kw":18,"yr":2026,"kg":"79.8","notes":"","synced":false},{"id":"2872193f-ddb","type":"gewicht","date":"2026-04-30","kw":18,"yr":2026,"kg":"77.2","notes":"","synced":false},{"id":"0ece7ade-845","type":"gewicht","date":"2026-04-29","kw":18,"yr":2026,"kg":"79.5","notes":"","synced":false},{"id":"ed596acc-356","type":"gewicht","date":"2026-04-28","kw":18,"yr":2026,"kg":"79.3","notes":"","synced":false},{"id":"0ae6882b-c9f","type":"gewicht","date":"2026-04-27","kw":18,"yr":2026,"kg":"78.9","notes":"","synced":false},{"id":"8e5d6699-f86","type":"gewicht","date":"2026-04-25","kw":17,"yr":2026,"kg":"79.1","notes":"","synced":false},{"id":"9879233f-c46","type":"gewicht","date":"2026-04-24","kw":17,"yr":2026,"kg":"79.3","notes":"","synced":false},{"id":"1d66ca00-106","type":"gewicht","date":"2026-04-23","kw":17,"yr":2026,"kg":"79.6","notes":"","synced":false},{"id":"040bfdaf-ddb","type":"gewicht","date":"2026-04-14","kw":16,"yr":2026,"kg":"77.9","notes":"","synced":false},{"id":"aafbf022-25d","type":"gewicht","date":"2026-04-13","kw":16,"yr":2026,"kg":"78.4","notes":"","synced":false},{"id":"25d2f06b-395","type":"gewicht","date":"2026-02-03","kw":6,"yr":2026,"kg":"77.8","notes":"","synced":false},{"id":"34424cf6-913","type":"gewicht","date":"2025-12-19","kw":51,"yr":2025,"kg":"80.3","notes":"","synced":false},{"id":"db3d09d9-01d","type":"gewicht","date":"2025-12-18","kw":51,"yr":2025,"kg":"80.1","notes":"","synced":false},{"id":"055bc0f9-9dc","type":"gewicht","date":"2025-12-01","kw":49,"yr":2025,"kg":"79.3","notes":"","synced":false},{"id":"98d3b98b-874","type":"gewicht","date":"2025-10-25","kw":43,"yr":2025,"kg":"81.1","notes":"","synced":false}];
+  const existingIds = new Set(DATA.entries.map(e => e.id));
+  let added = 0;
+  weights.forEach(e => {
+    if (!existingIds.has(e.id)) { DATA.entries.push(e); added++; }
+  });
+  DATA.settings.weightImported = true;
+  if (added > 0) { save(); console.log('Gewichtsdaten importiert:', added, 'Einträge'); }
+}
+
 function fixEntryKW() {
   // Korrigiert Einträge bei denen kw/yr nicht zum Datum passt (z.B. Strava-Import-Bug)
   let fixed = 0;
@@ -2014,6 +2064,7 @@ function fixEntryKW() {
 
 function init() {
   importHistoricalData();
+  importWeightData();
   fixEntryKW();
   renderHeute();
   updateSyncChip();
