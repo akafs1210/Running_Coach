@@ -2370,18 +2370,32 @@ async function gistSync(callback) {
     const fileContent = g.files[GIST_FILE]?.content;
     if (fileContent) {
       const remote = JSON.parse(fileContent);
+      // Löschliste aus Remote übernehmen (falls auf anderem Gerät gelöscht)
+      const remoteDeleted = remote.deletedIds || [];
+      if (remoteDeleted.length > 0) {
+        const existing = getDeletedIds();
+        remoteDeleted.forEach(id => existing.add(id));
+        try { localStorage.setItem(DELETED_KEY, JSON.stringify([...existing])); } catch(e) {}
+      }
+      const deletedIds = getDeletedIds();
       const localIds = new Set(DATA.entries.map(e => e.id));
       let added = 0;
       (remote.entries||[]).forEach(re => {
-        if (re?.id && !localIds.has(re.id)) { DATA.entries.push({...re, synced:true}); added++; }
+        if (re?.id && !localIds.has(re.id) && !deletedIds.has(re.id)) {
+          DATA.entries.push({...re, synced:true}); added++;
+        }
       });
       if (added > 0) { save(); renderHeute(); showToast(`↓ ${added} Einträge geladen`); }
     }
 
-    // Alle Daten hochladen
+    // Alle Daten hochladen (inkl. Löschliste)
     await fetch(`https://api.github.com/gists/${gistId}`, {
       method: 'PATCH', headers,
-      body: JSON.stringify({files:{[GIST_FILE]:{content: JSON.stringify({entries:DATA.entries, ts:Date.now()})}}})
+      body: JSON.stringify({files:{[GIST_FILE]:{content: JSON.stringify({
+        entries: DATA.entries,
+        deletedIds: [...getDeletedIds()],
+        ts: Date.now()
+      })}}})
     });
 
     DATA.entries.forEach(e => e.synced = true);
