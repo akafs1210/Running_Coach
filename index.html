@@ -404,6 +404,7 @@ function renderHeute() {
     <div class="act-grid" style="margin-bottom:16px">
       <button class="act-btn" onclick="startEntry('kraft_a')"><span class="act-emoji">💪</span>Kraft A<br><span style="color:var(--text3);font-size:10px">Push</span></button>
       <button class="act-btn" onclick="startEntry('kraft_b')"><span class="act-emoji">🏋️</span>Kraft B<br><span style="color:var(--text3);font-size:10px">Pull</span></button>
+      <button class="act-btn" onclick="startEntry('kraft_manuell')"><span class="act-emoji">✏️</span>Manuell<br><span style="color:var(--text3);font-size:10px">Eigenes WOD</span></button>
       <button class="act-btn" onclick="startEntry('longrun')"><span class="act-emoji">🏃</span>Longrun</button>
       <button class="act-btn" onclick="startEntry('threshold')"><span class="act-emoji">🔥</span>Threshold</button>
       <button class="act-btn" onclick="startEntry('interval')"><span class="act-emoji">⚡</span>Intervall</button>
@@ -634,12 +635,261 @@ function startEntryInWeek(kw, yr) {
 
 function renderEntryForm(type, plan) {
   if (type === 'kraft_a' || type === 'kraft_b') return renderKraftForm(type, plan);
+  if (type === 'kraft_manuell') return renderKraftManuellForm();
   if (['longrun','threshold','interval','z2'].includes(type)) return renderLaufForm(type, plan);
   if (['rennrad','mtb','ebike','wandern'].includes(type)) return renderRadForm(type, plan);
   if (type === 'schwimmen') return renderSchwimmForm(plan);
   if (type === 'surfen') return renderSurfenForm();
   if (type === 'gewicht') return renderGewichtForm();
   return '';
+}
+
+// ── EXERCISE DATABASE ──────────────────────────────────────
+const EXERCISE_DB = [
+  // Brust
+  {cat:'Brust',name:'Bankdrücken',unit:'kg/Wdh'},
+  {cat:'Brust',name:'Schrägbankdrücken KH',unit:'kg/Wdh'},
+  {cat:'Brust',name:'Negativbankdrücken',unit:'kg/Wdh'},
+  {cat:'Brust',name:'KH-Bankdrücken',unit:'kg/Wdh'},
+  {cat:'Brust',name:'Fliegende',unit:'kg/Wdh'},
+  {cat:'Brust',name:'Liegestütze',unit:'Wdh'},
+  {cat:'Brust',name:'Dips',unit:'kg/Wdh'},
+  {cat:'Brust',name:'Cable Crossover',unit:'kg/Wdh'},
+  {cat:'Brust',name:'Brustpresse (Maschine)',unit:'kg/Wdh'},
+  // Rücken
+  {cat:'Rücken',name:'Kreuzheben',unit:'kg/Wdh'},
+  {cat:'Rücken',name:'Klimmzüge',unit:'kg/Wdh'},
+  {cat:'Rücken',name:'Latzug',unit:'kg/Wdh'},
+  {cat:'Rücken',name:'LH-Rudern',unit:'kg/Wdh'},
+  {cat:'Rücken',name:'KH-Rudern',unit:'kg/Wdh'},
+  {cat:'Rücken',name:'Kabelrudern',unit:'kg/Wdh'},
+  {cat:'Rücken',name:'Hyperextensions',unit:'kg/Wdh'},
+  {cat:'Rücken',name:'Überzüge',unit:'kg/Wdh'},
+  {cat:'Rücken',name:'Face Pulls',unit:'kg/Wdh'},
+  // Schultern
+  {cat:'Schultern',name:'Schulterdrücken (OHP)',unit:'kg/Wdh'},
+  {cat:'Schultern',name:'KH-Schulterdrücken',unit:'kg/Wdh'},
+  {cat:'Schultern',name:'Seitheben',unit:'kg/Wdh'},
+  {cat:'Schultern',name:'Frontheben',unit:'kg/Wdh'},
+  {cat:'Schultern',name:'Vorgeneigtes Seitheben',unit:'kg/Wdh'},
+  {cat:'Schultern',name:'Upright Rows',unit:'kg/Wdh'},
+  {cat:'Schultern',name:'Arnold Press',unit:'kg/Wdh'},
+  // Beine & Gesäß
+  {cat:'Beine',name:'Kniebeugen',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Frontkniebeugen',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Ausfallschritte / Lunges',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Rumänisches Kreuzheben',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Einb. RDL (Zughilfe)',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Beinpresse',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Beinstrecken',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Beinbeugen',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Hip Thrusts',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Wadenheben',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Bulgarian Split Squats',unit:'kg/Wdh'},
+  {cat:'Beine',name:'Sandbag Lunges',unit:'kg/m'},
+  // Arme
+  {cat:'Arme',name:'Bizepscurls LH',unit:'kg/Wdh'},
+  {cat:'Arme',name:'Bizepscurls KH',unit:'kg/Wdh'},
+  {cat:'Arme',name:'Hammercurls',unit:'kg/Wdh'},
+  {cat:'Arme',name:'Konzentrationscurls',unit:'kg/Wdh'},
+  {cat:'Arme',name:'Preacher Curls',unit:'kg/Wdh'},
+  {cat:'Arme',name:'Trizepsdrücken (Kabel)',unit:'kg/Wdh'},
+  {cat:'Arme',name:'Schädelbrecher',unit:'kg/Wdh'},
+  {cat:'Arme',name:'Trizeps-Kickbacks',unit:'kg/Wdh'},
+  {cat:'Arme',name:'Enge Liegestütze',unit:'Wdh'},
+  // Core
+  {cat:'Core',name:'Crunches',unit:'Wdh'},
+  {cat:'Core',name:'Sit-ups',unit:'Wdh'},
+  {cat:'Core',name:'Plank-Variation',unit:'Sek'},
+  {cat:'Core',name:'Side Plank',unit:'Sek'},
+  {cat:'Core',name:'Beinheben',unit:'Wdh'},
+  {cat:'Core',name:'Russian Twists',unit:'Wdh'},
+  {cat:'Core',name:'Mountain Climbers',unit:'Wdh'},
+  {cat:'Core',name:'Ab Wheel Rollout',unit:'Wdh'},
+  // Ganzkörper / Functional
+  {cat:'Functional',name:'Sled Push (ohne Schlitten)',unit:'kg/m'},
+  {cat:'Functional',name:'Sled Pull / Leg Press',unit:'kg/Wdh'},
+  {cat:'Functional',name:'Farmers Carry',unit:'kg/m'},
+  {cat:'Functional',name:'Wallballs',unit:'kg/Wdh'},
+  {cat:'Functional',name:'Kettlebell Swings',unit:'kg/Wdh'},
+  {cat:'Functional',name:'Clean and Press',unit:'kg/Wdh'},
+  {cat:'Functional',name:'Muscle-ups',unit:'Wdh'},
+  {cat:'Functional',name:'Box Jumps',unit:'Wdh'},
+  {cat:'Functional',name:'Burpees',unit:'Wdh'},
+  {cat:'Functional',name:'Jumping Jacks',unit:'Wdh'},
+  // HIIT / Ausdauer
+  {cat:'HIIT',name:'HIIT: Ski Erg 3×250m',unit:'Sek/Runde'},
+  {cat:'HIIT',name:'HIIT: Row 3×250m',unit:'Sek/Runde'},
+  {cat:'HIIT',name:'HIIT: Bike Erg',unit:'Sek/Runde'},
+  {cat:'HIIT',name:'HIIT: SkiErg frei',unit:'Sek/Runde'},
+];
+
+// ── MANUELLES KRAFTTRAINING ────────────────────────────────
+let manuelleExs = []; // [{name, unit, sets:[{v1,v2}]}]
+
+function _readManuelleFromDOM() {
+  manuelleExs.forEach((ex, ei) => {
+    ex.sets.forEach((s, si) => {
+      if (isTimeUnit(ex.unit)) {
+        s.v1 = document.getElementById(`mx${ei}_s${si}_v1`)?.value || '';
+      } else {
+        s.v1 = document.getElementById(`mx${ei}_s${si}_v1`)?.value || '';
+        s.v2 = document.getElementById(`mx${ei}_s${si}_v2`)?.value || '';
+      }
+    });
+  });
+}
+
+function addManuelleEx(name, unit) {
+  _readManuelleFromDOM();
+  manuelleExs.push({name, unit: unit||'kg/Wdh', sets:[{v1:'',v2:''},{v1:'',v2:''},{v1:'',v2:''}]});
+  _renderManuellList();
+  document.getElementById('mx-search')?.focus();
+  // clear search
+  document.getElementById('mx-search').value = '';
+  _updateManuellSearch('');
+}
+
+function removeManuelleEx(ei) {
+  _readManuelleFromDOM();
+  manuelleExs.splice(ei, 1);
+  _renderManuellList();
+}
+
+function addManuelleSet(ei) {
+  _readManuelleFromDOM();
+  manuelleExs[ei].sets.push({v1:'',v2:''});
+  _renderManuellList();
+}
+
+function removeManuelleSet(ei) {
+  _readManuelleFromDOM();
+  if (manuelleExs[ei].sets.length > 1) manuelleExs[ei].sets.pop();
+  _renderManuellList();
+}
+
+function _renderManuellList() {
+  const el = document.getElementById('mx-list');
+  if (!el) return;
+  if (!manuelleExs.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:14px;text-align:center;padding:16px">Noch keine Übungen hinzugefügt.</div>';
+    return;
+  }
+  el.innerHTML = manuelleExs.map((ex, ei) => {
+    const isSek = isTimeUnit(ex.unit);
+    const setsHtml = ex.sets.map((s, si) => {
+      const inputs = isSek
+        ? `<input type="number" inputmode="numeric" placeholder="${s.v1||'Sek'}" id="mx${ei}_s${si}_v1" value="${s.v1||''}" style="width:72px;padding:8px 4px;font-size:15px" onfocus="this.placeholder=''">`
+        : `<input type="number" inputmode="decimal" placeholder="${s.v1||'kg'}" id="mx${ei}_s${si}_v1" value="${s.v1||''}" style="width:52px;padding:8px 4px;font-size:15px" onfocus="this.placeholder=''">
+           <input type="number" inputmode="numeric" placeholder="${s.v2||'Wdh'}" id="mx${ei}_s${si}_v2" value="${s.v2||''}" style="width:48px;padding:8px 4px;font-size:15px" onfocus="this.placeholder=''">`;
+      return `<div class="set-col"><div class="set-label">S${si+1}</div><div class="set-inputs">${inputs}</div></div>`;
+    }).join('');
+    return `<div class="ex-row" style="margin-bottom:10px">
+      <div class="ex-header" style="margin-bottom:8px">
+        <div>
+          <div class="ex-name">${ex.name}</div>
+          <div class="ex-prev" style="font-size:11px;color:var(--text3)">${ex.unit}</div>
+        </div>
+        <button onclick="removeManuelleEx(${ei})" style="padding:4px 10px;font-size:18px;background:none;border:1px solid #400;color:var(--red);border-radius:8px">×</button>
+      </div>
+      <div class="sets-grid">${setsHtml}</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        ${ex.sets.length > 1 ? `<button onclick="removeManuelleSet(${ei})" style="flex:1;font-size:13px;padding:6px">− Satz</button>` : ''}
+        <button onclick="addManuelleSet(${ei})" style="flex:1;font-size:13px;padding:6px">＋ Satz</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _updateManuellSearch(q) {
+  const el = document.getElementById('mx-results');
+  if (!el) return;
+  q = q.trim().toLowerCase();
+  if (!q) { el.innerHTML = ''; el.style.display='none'; return; }
+  const matches = EXERCISE_DB.filter(e =>
+    e.name.toLowerCase().includes(q) || e.cat.toLowerCase().includes(q)
+  ).slice(0, 12);
+  const alreadyAdded = new Set(manuelleExs.map(e => e.name));
+  const items = matches.map(e =>
+    `<div onclick="addManuelleEx('${e.name.replace(/'/g,"\\'")}','${e.unit}')"
+      style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px;display:flex;justify-content:space-between;align-items:center;${alreadyAdded.has(e.name)?'opacity:.4;pointer-events:none':''}"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <span><strong>${e.name}</strong><span style="color:var(--text3);font-size:11px;margin-left:6px">${e.cat}</span></span>
+      <span style="font-size:11px;color:var(--text3)">${e.unit}</span>
+    </div>`
+  );
+  // Freitext-Option immer unten
+  const qOrig = document.getElementById('mx-search')?.value?.trim() || '';
+  if (qOrig && !EXERCISE_DB.some(e => e.name.toLowerCase() === qOrig.toLowerCase())) {
+    items.push(`<div onclick="addManuelleEx('${qOrig.replace(/'/g,"\\'")}','kg/Wdh')"
+      style="padding:10px 12px;cursor:pointer;font-size:14px;color:var(--accent)"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      ＋ "${qOrig}" als eigene Übung hinzufügen
+    </div>`);
+  }
+  el.innerHTML = items.join('') || `<div style="padding:10px 12px;font-size:14px;color:var(--text3)">Keine Treffer – unten als eigene Übung hinzufügen.</div>
+    <div onclick="addManuelleEx('${q.replace(/'/g,"\\'")}','kg/Wdh')"
+      style="padding:10px 12px;cursor:pointer;font-size:14px;color:var(--accent)"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      ＋ "${q}" als eigene Übung hinzufügen
+    </div>`;
+  el.style.display = 'block';
+}
+
+function saveKraftManuell() {
+  _readManuelleFromDOM();
+  if (!manuelleExs.length) { showToast('Bitte mindestens eine Übung hinzufügen'); return; }
+  const {week, year} = currentKW();
+  const exercises = manuelleExs.map((ex, ei) => ({
+    id: String(ei),
+    name: ex.name,
+    sets: ex.sets.map(s => isTimeUnit(ex.unit) ? {sek: s.v1||null} : {kg: s.v1||null, reps: s.v2||null})
+  }));
+  const kgw = document.getElementById('mx-kgw')?.value;
+  const date = document.getElementById('mx-date')?.value || todayStr();
+  const entry = {
+    id: uid(), kw: eintragenState.kw||week, yr: eintragenState.yr||year,
+    type: 'kraft_manuell', date, kgw: kgw||null,
+    notes: document.getElementById('mx-notes')?.value||null,
+    exercises, synced: false
+  };
+  DATA.entries.push(entry);
+  if (kgw) DATA.entries.push({id:uid(), kw:entry.kw, yr:entry.yr, type:'gewicht', date, kg:kgw, synced:false});
+  save(); trySync();
+  manuelleExs = [];
+  eintragenState.actType = null;
+  renderEintragen();
+  showToast('Gespeichert ✓');
+}
+
+function renderKraftManuellForm() {
+  manuelleExs = manuelleExs.length ? manuelleExs : [];
+  setTimeout(() => _renderManuellList(), 0);
+  return `<div class="card">
+    <h2>✏️ Manuelles Training</h2>
+    <div class="input-row" style="margin-bottom:14px">
+      <div class="form-group"><label>Datum</label><input type="date" id="mx-date" value="${todayStr()}"></div>
+      <div class="form-group"><label>Körpergewicht (kg)</label><input type="number" inputmode="decimal" id="mx-kgw" placeholder="80"></div>
+    </div>
+
+    <div style="position:relative;margin-bottom:14px">
+      <label>Übung suchen &amp; hinzufügen</label>
+      <input type="text" id="mx-search" placeholder="z.B. Bankdrücken, Squat, Plank…"
+        oninput="_updateManuellSearch(this.value)"
+        onblur="setTimeout(()=>{const r=document.getElementById('mx-results');if(r)r.style.display='none'},200)"
+        onFocus="if(this.value)_updateManuellSearch(this.value)"
+        autocomplete="off">
+      <div id="mx-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg1);border:1px solid var(--border);border-radius:10px;z-index:200;max-height:260px;overflow-y:auto;margin-top:4px;box-shadow:0 4px 16px rgba(0,0,0,.5)"></div>
+    </div>
+
+    <div id="mx-list"></div>
+
+    <div class="form-group" style="margin-top:12px">
+      <label>Notizen</label>
+      <textarea id="mx-notes" rows="2" placeholder="Wie lief's?" style="resize:none"></textarea>
+    </div>
+    <button class="primary" style="width:100%;margin-top:12px" onclick="saveKraftManuell()">Speichern</button>
+  </div>`;
 }
 
 function renderKraftForm(type, plan) {
@@ -1262,7 +1512,7 @@ function saveSyncUrl() {
 
 // ── STRAVA ─────────────────────────────────────────────────
 const STRAVA_TYPE_MAP = {
-  WeightTraining: {emoji:'💪', label:'Krafttraining', type:'kraft_a'},
+  WeightTraining: {emoji:'💪', label:'Krafttraining', type:'kraft_manuell'},
   Run:            {emoji:'🏃', label:'Lauf',          type:'z2'},
   VirtualRun:     {emoji:'🏃', label:'Lauf (Virtual)',type:'z2'},
   Ride:           {emoji:'🚴', label:'Rennrad',        type:'rennrad'},
