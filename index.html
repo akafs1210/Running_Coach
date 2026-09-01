@@ -1543,6 +1543,7 @@ function deleteEntry(id) {
   DATA.entries = DATA.entries.filter(e => e.id !== id);
   save();
   renderEintragen();
+  renderHeute();
 }
 
 // ── FORTSCHRITT TAB ────────────────────────────────────────
@@ -2260,11 +2261,12 @@ function loadFromCloud(callback) {
     .then(remoteEntries => {
       if (!Array.isArray(remoteEntries)) throw new Error('Keine Array-Antwort');
 
-      // Neue IDs aus der Cloud einfügen (Dedup per id)
+      // Neue IDs aus der Cloud einfügen (Dedup per id, gelöschte überspringen)
       const localIds = new Set(DATA.entries.map(e => e.id));
+      const deletedIds = getDeletedIds();
       let added = 0;
       remoteEntries.forEach(re => {
-        if (re && re.id && !localIds.has(re.id)) {
+        if (re && re.id && !localIds.has(re.id) && !deletedIds.has(re.id)) {
           re.synced = true; // aus Cloud → gilt als synchronisiert
           DATA.entries.push(re);
           localIds.add(re.id);
