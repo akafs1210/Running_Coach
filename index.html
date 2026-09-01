@@ -674,8 +674,8 @@ function renderHeute() {
 
   const planInfo = plan ? `KW ${plan.r?plan.kw+'R':plan.kw} · ${fmtDate(plan.start)}–${fmtDate(plan.end)}` : `KW ${week}/${year}`;
 
-  // Einträge dieser Woche (neueste zuerst)
-  const weekEntries = [...entries].sort((a,b) => b.date.localeCompare(a.date));
+  // Einträge dieser Woche (neueste zuerst, Gewicht ausblenden)
+  const weekEntries = [...entries].filter(e => e.type !== 'gewicht').sort((a,b) => b.date.localeCompare(a.date));
   const entriesHTML = weekEntries.length
     ? weekEntries.map(e => entryHTML(e)).join('')
     : `<div style="color:var(--text3);font-size:14px;text-align:center;padding:12px 0">Noch keine Einträge diese Woche</div>`;
@@ -1774,7 +1774,10 @@ function renderFortschritt() {
       </div>
     </div>
 
-    <div class="sec">Gewichtsverlauf</div>
+    <div class="sec" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Gewichtsverlauf</span>
+      <button onclick="openGewichtVerwaltung()" style="background:none;border:none;color:var(--text3);font-size:20px;padding:4px 8px;cursor:pointer" title="Einträge bearbeiten">⚙</button>
+    </div>
     <div class="card" style="padding:12px">
       <canvas id="chart-weight" height="160"></canvas>
     </div>
@@ -1835,6 +1838,47 @@ function renderFortschritt() {
     const kwSel = document.getElementById('export-kw');
     if (kwSel && kwSel.options.length) kwSel.selectedIndex = kwSel.options.length - 1;
   }, 50);
+}
+
+// ── GEWICHT VERWALTUNG ─────────────────────────────────────
+function openGewichtVerwaltung() {
+  const entries = [...DATA.entries]
+    .filter(e => e.type === 'gewicht')
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const rows = entries.map(e => `
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)" id="gw-row-${e.id}">
+      <span style="flex:1;font-size:14px">${e.date}</span>
+      <input type="number" step="0.1" value="${e.kg||''}"
+        style="width:70px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg1);color:var(--text1);font-size:14px;text-align:right"
+        id="gw-kg-${e.id}" onchange="saveGewichtEdit('${e.id}')">
+      <span style="font-size:13px;color:var(--text3)">kg</span>
+      <button onclick="deleteEntry('${e.id}');document.getElementById('gw-row-${e.id}').remove()"
+        style="background:#300;color:var(--red);border:none;border-radius:8px;min-width:36px;min-height:36px;font-size:16px;cursor:pointer">✕</button>
+    </div>`).join('');
+
+  const ov = document.createElement('div');
+  ov.id = 'gw-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:flex-end';
+  ov.innerHTML = `
+    <div style="background:var(--bg0);width:100%;max-height:80vh;border-radius:18px 18px 0 0;padding:20px;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <span style="font-weight:700;font-size:17px">⚖️ Gewichtseinträge</span>
+        <button onclick="document.getElementById('gw-overlay').remove()" style="background:none;border:none;font-size:24px;color:var(--text3);cursor:pointer">✕</button>
+      </div>
+      ${rows || '<div style="color:var(--text3);text-align:center;padding:20px">Keine Einträge</div>'}
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function saveGewichtEdit(id) {
+  const entry = DATA.entries.find(e => e.id === id);
+  if (!entry) return;
+  const input = document.getElementById('gw-kg-' + id);
+  if (!input) return;
+  entry.kg = input.value;
+  save();
+  renderFortschritt();
 }
 
 // ── CHARTS ─────────────────────────────────────────────────
