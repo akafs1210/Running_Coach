@@ -2207,7 +2207,7 @@ function importStrava(act) {
 }
 
 function trySync() {
-  if (DATA.settings.gistToken) { gistSync(); return; }
+  if (DATA.settings.gistToken) { gistSync(); }
   if (!DATA.settings.syncUrl) return;
   if (syncState === 'syncing') { syncPending = true; return; }
   const toSync = DATA.entries.filter(e => !e.synced);
