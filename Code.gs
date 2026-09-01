@@ -83,14 +83,22 @@ function doPost(e) {
         .getValues().forEach(r => existingIds.add(r[0]));
     }
 
-    const newEntries = entries.filter(e => e && e.id && !existingIds.has(e.id));
+    // Gelöschte Einträge aus Sync_Eintraege entfernen
+    const deletedIds = new Set(payload.deletedIds || []);
+    if (deletedIds.size > 0 && rawSheet.getLastRow() > 1) {
+      const rows = rawSheet.getRange(2, 1, rawSheet.getLastRow() - 1, 1).getValues();
+      for (let i = rows.length - 1; i >= 0; i--) {
+        if (deletedIds.has(rows[i][0])) rawSheet.deleteRow(i + 2);
+      }
+    }
+
+    const newEntries = entries.filter(e => e && e.id && !existingIds.has(e.id) && !deletedIds.has(e.id));
     newEntries.forEach(entry => {
       rawSheet.appendRow([entry.id, JSON.stringify(entry), new Date().toISOString()]);
-      // Gewicht direkt anhängen (kein Block-Format nötig)
       if (entry.type === 'gewicht') writeGewicht(ss, entry);
     });
 
-    if (newEntries.length > 0) {
+    if (newEntries.length > 0 || deletedIds.size > 0) {
       rebuildKW(ss);
       rebuildLogKraft(ss);
       rebuildLogLauf(ss);
@@ -235,12 +243,12 @@ function writeKraftBlock(sh, entry) {
     row++;
   });
 
-  const empty = [Array(COLS).fill('')];
-  sh.getRange(row, 1, 1, COLS).setValues(empty).setBackground(COL_WHITE);
-  sh.setRowHeight(row, 12);
-  row++;
-  sh.getRange(row, 1, 1, COLS).setValues(empty).setBackground(COL_WHITE);
-  sh.setRowHeight(row, 12);
+  sh.appendRow(['—']);
+  sh.setRowHeight(sh.getLastRow(), 12);
+  sh.getRange(sh.getLastRow(), 1, 1, COLS).setBackground(COL_WHITE).setFontColor(COL_WHITE);
+  sh.appendRow(['—']);
+  sh.setRowHeight(sh.getLastRow(), 12);
+  sh.getRange(sh.getLastRow(), 1, 1, COLS).setBackground(COL_WHITE).setFontColor(COL_WHITE);
 }
 
 // ────────────────────────────────────────────────────────────
@@ -304,12 +312,12 @@ function writeLaufBlock(sh, entry) {
   ], COLS);
   row++;
 
-  const empty = [Array(COLS).fill('')];
-  sh.getRange(row, 1, 1, COLS).setValues(empty).setBackground(COL_WHITE);
-  sh.setRowHeight(row, 12);
-  row++;
-  sh.getRange(row, 1, 1, COLS).setValues(empty).setBackground(COL_WHITE);
-  sh.setRowHeight(row, 12);
+  sh.appendRow(['—']);
+  sh.setRowHeight(sh.getLastRow(), 12);
+  sh.getRange(sh.getLastRow(), 1, 1, COLS).setBackground(COL_WHITE).setFontColor(COL_WHITE);
+  sh.appendRow(['—']);
+  sh.setRowHeight(sh.getLastRow(), 12);
+  sh.getRange(sh.getLastRow(), 1, 1, COLS).setBackground(COL_WHITE).setFontColor(COL_WHITE);
 }
 
 // ────────────────────────────────────────────────────────────
@@ -375,12 +383,12 @@ function writeRadBlock(sh, entry) {
   ], COLS);
   row++;
 
-  const empty = [Array(COLS).fill('')];
-  sh.getRange(row, 1, 1, COLS).setValues(empty).setBackground(COL_WHITE);
-  sh.setRowHeight(row, 12);
-  row++;
-  sh.getRange(row, 1, 1, COLS).setValues(empty).setBackground(COL_WHITE);
-  sh.setRowHeight(row, 12);
+  sh.appendRow(['—']);
+  sh.setRowHeight(sh.getLastRow(), 12);
+  sh.getRange(sh.getLastRow(), 1, 1, COLS).setBackground(COL_WHITE).setFontColor(COL_WHITE);
+  sh.appendRow(['—']);
+  sh.setRowHeight(sh.getLastRow(), 12);
+  sh.getRange(sh.getLastRow(), 1, 1, COLS).setBackground(COL_WHITE).setFontColor(COL_WHITE);
 }
 
 // ── Übersicht KW neu aufbauen ──────────────────────────────
