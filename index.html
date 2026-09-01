@@ -562,7 +562,7 @@ function openKraftEdit(id) {
       kg: s.kg ?? s.v1 ?? '', reps: s.reps ?? s.v2 ?? '', sek: s.sek ?? ''
     }))
   }));
-  const label = entry.type === 'kraft_a' ? '💪 Kraft A – Push' : '🏋️ Kraft B – Pull';
+  const label = entry.type === 'kraft_a' ? '💪 Kraft A – Push' : entry.type === 'kraft_b' ? '🏋️ Kraft B – Pull' : '✏️ Kraft Manuell';
   const feelingBtns = Array.from({length:10}, (_,i) => {
     const sel = String(i+1) === String(entry.feeling) ? ' sel' : '';
     return `<button class="feeling-btn${sel}" onclick="setFeeling(${i+1},this)">${i+1}</button>`;
@@ -1500,7 +1500,7 @@ function entryHTML(e) {
   const summary = entrySummary(e);
   const detail = entryDetail(e);
   const hasDetail = !!detail;
-  const isKraft = ['kraft_a','kraft_b'].includes(e.type);
+  const isKraft = ['kraft_a','kraft_b','kraft_manuell'].includes(e.type);
   const editBtn = isKraft
     ? `<button onclick="event.stopPropagation();openKraftEdit('${e.id}')" style="background:none;border:none;color:var(--text3);font-size:20px;padding:0;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" title="Bearbeiten">✏</button>`
     : '';
