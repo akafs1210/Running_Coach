@@ -2208,10 +2208,15 @@ function importStrava(act) {
 
 function trySync() {
   if (DATA.settings.gistToken) { gistSync(); }
+  syncToSheet();
+}
+
+function syncToSheet() {
   if (!DATA.settings.syncUrl) return;
   if (syncState === 'syncing') { syncPending = true; return; }
-  const toSync = DATA.entries.filter(e => !e.synced);
-  if (!toSync.length) { updateSyncChip(); return; }
+  // Sende alle Einträge — das Apps Script dedupliziert per ID
+  const toSync = DATA.entries;
+  if (!toSync.length) return;
 
   syncState = 'syncing';
   updateSyncChip();
@@ -2222,11 +2227,9 @@ function trySync() {
     headers: {'Content-Type': 'text/plain;charset=utf-8'},
     body: JSON.stringify({entries: toSync})
   }).then(() => {
-    toSync.forEach(e => { const found = DATA.entries.find(x => x.id===e.id); if (found) found.synced = true; });
-    save();
     syncState = 'idle';
     updateSyncChip();
-    if (syncPending) { syncPending = false; trySync(); }
+    if (syncPending) { syncPending = false; syncToSheet(); }
   }).catch(() => {
     syncState = 'idle';
     updateSyncChip();
