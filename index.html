@@ -1646,8 +1646,10 @@ function exportKWText() {
           const sets = (ex.sets||[]).map((s,i) => {
             const kg   = s.kg   ?? s.v1 ?? '';
             const reps = s.reps ?? s.v2 ?? '';
+            const sek  = s.sek  ?? '';
+            if (sek)        return `S${i+1}: ${sek}s`;
             if (kg && reps) return `S${i+1}: ${kg}kg×${reps}`;
-            if (kg)         return `S${i+1}: ${kg}`;
+            if (kg)         return `S${i+1}: ${kg}s`;
             if (reps)       return `S${i+1}: ${reps}`;
             return '';
           }).filter(Boolean).join(' ');
