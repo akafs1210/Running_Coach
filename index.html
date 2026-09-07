@@ -2879,11 +2879,15 @@ function renderSettings() {
       <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Kalenderwoche auswählen:</div>
       <div style="display:flex;gap:8px">
         <select id="plan-edit-kw" style="flex:1">
-          ${PLAN.map(p => {
-            const k = planKey(p.kw, p.yr);
-            const hasOv = Object.keys((DATA.settings.planOverrides||{})[k]||{}).length > 0;
-            return `<option value="${k}">KW ${p.kw}/${p.yr}${hasOv?' ✎':''}</option>`;
-          }).join('')}
+          ${(() => {
+            const {week, year} = currentKW();
+            const curKey = planKey(week, year);
+            return PLAN.map(p => {
+              const k = planKey(p.kw, p.yr);
+              const hasOv = Object.keys((DATA.settings.planOverrides||{})[k]||{}).length > 0;
+              return `<option value="${k}" ${k===curKey?'selected':''}">KW ${p.kw}/${p.yr}${hasOv?' ✎':''}</option>`;
+            }).join('');
+          })()}
         </select>
         <button onclick="openKWEditor(document.getElementById('plan-edit-kw').value)" style="font-size:13px;padding:8px 14px">Bearbeiten</button>
       </div>
