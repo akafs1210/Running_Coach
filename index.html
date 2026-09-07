@@ -341,7 +341,7 @@ function openKWEditor(key) {
     {v:'kraft_manuell',label:'Kraft Manuell ✏️',        emoji:'✏️', text:'Freies Krafttraining'},
     {v:'longrun',      label:'Longrun 🏃',              emoji:'🏃', text:`${eff.lr} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`},
     {v:'threshold',    label:'Threshold 🔥',            emoji:'🔥', text:`${eff.thr} km @ ~4:40–5:00/km | HR 158–168`},
-    {v:'interval',     label:'Intervall ⚡',            emoji:'⚡', text:'5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~10km'},
+    {v:'interval',     label:'Intervall ⚡',            emoji:'⚡', text:'5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~7km'},
     {v:'z2',           label:'Z2 Lauf 🌿',              emoji:'🌿', text:`${eff.z2} km | HR 136–142 bpm | ~5:30–6:20/km`},
     {v:'rennrad',      label:'Rennrad 🚴',              emoji:'🚴', text:`${eff.radLo||40}–${eff.radHi||60} km | HR ≤ 148 bpm`},
     {v:'mtb',          label:'MTB 🏔️',                 emoji:'🏔️',text:'MTB'},
@@ -452,7 +452,7 @@ function saveKWEditor(key, kw, yr, baseLR) {
     kraft_manuell: {label:'Kraft Manuell ✏️',        text:'Freies Krafttraining', btn:'kraft_manuell'},
     longrun:       {label:'Longrun 🏃',              text:`${newLR} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`, btn:'longrun'},
     threshold:     {label:'Threshold 🔥',            text:`${newThr||eff2.thr||0} km @ ~4:40–5:00/km | HR 158–168`, btn:'threshold'},
-    interval:      {label:'Intervall ⚡',            text:'5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~10km', btn:'interval'},
+    interval:      {label:'Intervall ⚡',            text:'5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~7km', btn:'interval'},
     z2:            {label:'Z2 Lauf 🌿',              text:`${newZ2||eff2.z2||0} km | HR 136–142 bpm | ~5:30–6:20/km`, btn:'z2'},
     rennrad:       {label:'Rennrad 🚴',              text:`${parseInt(document.getElementById('ed-radLo')?.value)||eff2.radLo||40}–${parseInt(document.getElementById('ed-radHi')?.value)||eff2.radHi||60} km | HR ≤ 148 bpm`, btn:'rennrad'},
     mtb:           {label:'MTB 🏔️',                 text:'MTB', btn:'mtb'},
@@ -996,7 +996,7 @@ function renderHeute() {
     const dayOv = plan.days || {};
     const dayPlanBase = {
       1: { label: 'Mo – Kraft PUSH 💪', text: 'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT', btn: 'kraft_a' },
-      2: { label: plan.intv ? 'Di – Intervall 🏃⚡' : 'Di – Threshold 🔥', text: plan.intv ? `5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~10km` : `${plan.thr} km @ ~4:40–5:00/km | HR 158–168`, btn: plan.intv ? 'interval' : 'threshold' },
+      2: { label: plan.intv ? 'Di – Intervall 🏃⚡' : 'Di – Threshold 🔥', text: plan.intv ? `5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~7km` : `${plan.thr} km @ ~4:40–5:00/km | HR 158–168`, btn: plan.intv ? 'interval' : 'threshold' },
       3: { label: 'Mi – Z2 Lauf 🏃', text: `${plan.z2} km | HR 136–142 bpm | ~5:30–6:20/km`, btn: 'z2' },
       4: { label: 'Do – Kraft PULL 💪', text: 'Einb. RDL · Farmers Carry · Sled/Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT', btn: 'kraft_b' },
       5: { label: 'Fr – Recovery / Plyo 🦘', text: 'Plyometrics 30 Min oder Pause & Mobility', btn: null },
@@ -1144,7 +1144,7 @@ function renderPlan() {
     const kwLabel = `KW ${p.kw}${ep.r?'R':''} / ${p.yr}`;
     const dateRange = `${fmtDate(p.start)} – ${fmtDate(p.end)}`;
     const satLabel = ep.r ? `🚴 Rennrad ${ep.radLo}–${ep.radHi} km` : `🏃 Longrun ${ep.lr} km`;
-    const diLabel = ep.intv ? `⚡ Intervall 5×1km ~10km ges.` : `🔥 Threshold ${ep.thr} km`;
+    const diLabel = ep.intv ? `⚡ Intervall 5×1km ~7km ges.` : `🔥 Threshold ${ep.thr} km`;
 
     const exListA = exA.map(e => `<li style="margin-bottom:3px">${e.name}</li>`).join('');
     const exListB = exB.map(e => `<li style="margin-bottom:3px">${e.name}</li>`).join('');
