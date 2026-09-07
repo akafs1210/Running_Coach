@@ -2888,7 +2888,7 @@ function renderSettings() {
             return PLAN.map(p => {
               const k = planKey(p.kw, p.yr);
               const hasOv = Object.keys((DATA.settings.planOverrides||{})[k]||{}).length > 0;
-              return `<option value="${k}" ${k===curKey?'selected':''}">KW ${p.kw}/${p.yr}${hasOv?' ✎':''}</option>`;
+              return `<option value="${k}" ${k===curKey?'selected':''}>KW ${p.kw}/${p.yr}${hasOv?' ✎':''}</option>`;
             }).join('');
           })()}
         </select>
