@@ -1434,21 +1434,25 @@ function addToCustomExDB(name, unit, cat) {
 function renderExDBListHTML(q) {
   const custom = DATA.settings.customExDB || [];
   const ql = (q || '').trim().toLowerCase();
-  const filtered = custom.filter(e =>
+  const all = getAllExercises();
+  const filtered = all.filter(e =>
     !ql || (e.name + ' ' + e.cat).toLowerCase().includes(ql)
   );
   if (!filtered.length) {
-    return `<div style="font-size:13px;color:var(--text3);padding:8px 0">${ql ? 'Keine Treffer' : 'Noch keine eigenen Übungen'}</div>`;
+    return `<div style="font-size:13px;color:var(--text3);padding:8px 0">Keine Treffer</div>`;
   }
-  return filtered.map((e, i) => {
-    const realIdx = custom.indexOf(e);
+  return filtered.map(e => {
+    const customIdx = custom.findIndex(c => c.name.toLowerCase() === e.name.toLowerCase());
+    const isCustom = customIdx >= 0;
     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
       <div style="flex:1;min-width:0">
         <div style="font-size:14px;font-weight:600">${e.name}</div>
-        <div style="font-size:11px;color:var(--text3)">${e.cat} · ${e.unit}</div>
+        <div style="font-size:11px;color:var(--text3)">${e.cat} · ${e.unit}${isCustom ? ' · <span style="color:var(--accent)">Eigene</span>' : ''}</div>
       </div>
-      <button onclick="openEditExDBDialog(${realIdx})" style="padding:5px 10px;font-size:12px">✎</button>
-      <button onclick="deleteCustomEx(${realIdx})" style="padding:5px 10px;font-size:12px;background:var(--danger,#e53e3e);color:#fff;border:none">✕</button>
+      ${isCustom ? `
+        <button onclick="openEditExDBDialog(${customIdx})" style="padding:5px 10px;font-size:12px">✎</button>
+        <button onclick="deleteCustomEx(${customIdx})" style="padding:5px 10px;font-size:12px;background:var(--danger,#e53e3e);color:#fff;border:none">✕</button>
+      ` : '<div style="font-size:11px;color:var(--text3);padding:0 8px">Standard</div>'}
     </div>`;
   }).join('');
 }
