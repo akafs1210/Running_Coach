@@ -1117,38 +1117,52 @@ function renderPlan() {
   const exA = getExA(), exB = getExB();
 
   const cards = PLAN.map(p => {
+    const ep = getEffectivePlan(p.kw, p.yr) || p;
     const isCurrent = p.kw === week && p.yr === year;
-    const kwLabel = `KW ${p.kw}${p.r?'R':''} / ${p.yr}`;
+    const kwLabel = `KW ${p.kw}${ep.r?'R':''} / ${p.yr}`;
     const dateRange = `${fmtDate(p.start)} – ${fmtDate(p.end)}`;
-    const satLabel = p.r ? `🚴 Rennrad ${p.radLo}–${p.radHi} km` : `🏃 Longrun ${p.lr} km`;
-    const diLabel = p.intv ? `⚡ Intervall 5×1km ~10km ges.` : `🔥 Threshold ${p.thr} km`;
+    const satLabel = ep.r ? `🚴 Rennrad ${ep.radLo}–${ep.radHi} km` : `🏃 Longrun ${ep.lr} km`;
+    const diLabel = ep.intv ? `⚡ Intervall 5×1km ~10km ges.` : `🔥 Threshold ${ep.thr} km`;
 
     const exListA = exA.map(e => `<li style="margin-bottom:3px">${e.name}</li>`).join('');
     const exListB = exB.map(e => `<li style="margin-bottom:3px">${e.name}</li>`).join('');
-    const sets = p.r ? 2 : 3;
+    const sets = ep.r ? 2 : 3;
+
+    // Per-day overrides
+    const dayOv = ep.days || {};
+    const dayDefault = {
+      1:{label:`Mo – Kraft PUSH (${sets} Sätze)`, content:`<ul style="padding-left:16px;font-size:13px;color:var(--text2)">${exListA}</ul>`},
+      2:{label:`Di – ${ep.intv?'Intervall':'Threshold'}`, content:`<div style="font-size:13px;color:var(--text2)">${diLabel}</div>`},
+      3:{label:'Mi – Z2 Lauf', content:`<div style="font-size:13px;color:var(--text2)">🏃 ${ep.z2} km | HR 136–142 bpm</div>`},
+      4:{label:`Do – Kraft PULL (${sets} Sätze)`, content:`<ul style="padding-left:16px;font-size:13px;color:var(--text2)">${exListB}</ul>`},
+      5:{label:'Fr – Recovery', content:`<div style="font-size:13px;color:var(--text2)">🦘 Plyometrics oder Pause/Mobility</div>`},
+      6:{label:'Sa', content:`<div style="font-size:13px;color:var(--text2)">${satLabel}</div>`},
+      0:{label:'So – Pause', content:`<div style="font-size:13px;color:var(--text2)">😴 Aktive Erholung</div>`},
+    };
+    const dayRows = [1,2,3,4,5,6,0].map(d => {
+      const ov = dayOv[d];
+      const def = dayDefault[d];
+      const label = ov ? ov.label : def.label;
+      const contentHtml = ov ? `<div style="font-size:13px;color:var(--text2)">${ov.text||''}</div>` : def.content;
+      return `<div class="day-row"><div class="day-label">${label}</div>${contentHtml}</div>`;
+    }).join('');
 
     return `<div class="week-card">
       <div class="week-card-header${isCurrent?' current':''}" onclick="toggleWeekCard(this)">
         <div>
           <div style="font-weight:700">${kwLabel}</div>
           <div style="font-size:12px;color:var(--text2)">${dateRange}</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:3px">Lauf ${p.lauf} km · 2× Kraft · ${sets} Sätze</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:3px">Lauf ${ep.lauf} km · 2× Kraft · ${sets} Sätze</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           ${isCurrent?'<span class="badge badge-p">Aktuell</span>':''}
-          ${p.r?'<span class="badge badge-r">Reduktion</span>':''}
+          ${ep.r?'<span class="badge badge-r">Reduktion</span>':''}
           <span class="chevron">▼</span>
         </div>
       </div>
       <div class="week-card-body${isCurrent?' open':''}">
-        ${p.hint ? `<div style="background:var(--bg2);border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:13px;color:var(--orange)">${p.hint}</div>` : ''}
-        <div class="day-row"><div class="day-label">Mo – Kraft PUSH (${sets} Sätze)</div><ul style="padding-left:16px;font-size:13px;color:var(--text2)">${exListA}</ul></div>
-        <div class="day-row"><div class="day-label">Di – ${p.intv?'Intervall':'Threshold'}</div><div style="font-size:13px;color:var(--text2)">${diLabel}</div></div>
-        <div class="day-row"><div class="day-label">Mi – Z2 Lauf</div><div style="font-size:13px;color:var(--text2)">🏃 ${p.z2} km | HR 136–142 bpm</div></div>
-        <div class="day-row"><div class="day-label">Do – Kraft PULL (${sets} Sätze)</div><ul style="padding-left:16px;font-size:13px;color:var(--text2)">${exListB}</ul></div>
-        <div class="day-row"><div class="day-label">Fr – Recovery</div><div style="font-size:13px;color:var(--text2)">🦘 Plyometrics oder Pause/Mobility</div></div>
-        <div class="day-row"><div class="day-label">Sa</div><div style="font-size:13px;color:var(--text2)">${satLabel}</div></div>
-        <div class="day-row"><div class="day-label">So – Pause</div><div style="font-size:13px;color:var(--text2)">😴 Aktive Erholung</div></div>
+        ${ep.hint ? `<div style="background:var(--bg2);border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:13px;color:var(--orange)">${ep.hint}</div>` : ''}
+        ${dayRows}
         <div style="margin-top:12px">
           <button onclick="startEntryInWeek(${p.kw},${p.yr})" style="width:100%">In KW ${p.kw}/${p.yr} eintragen</button>
         </div>
