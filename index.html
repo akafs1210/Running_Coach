@@ -276,6 +276,7 @@ function defaultData() {
       hrZones: {z1:136,z2:142,z3:158,z4:168,max:195},
       customExA: null,
       customExB: null,
+      customExDB: [],
       planOverrides: {},
     }
   };
@@ -790,7 +791,8 @@ function _kfUpdateSearch(q) {
   q = q.trim().toLowerCase();
   if (!q) { el.innerHTML = ''; el.style.display = 'none'; return; }
   const words = q.split(/\s+/).filter(Boolean);
-  const matches = EXERCISE_DB.filter(e => {
+  const allEx = getAllExercises();
+  const matches = allEx.filter(e => {
     const text = (e.name + ' ' + e.cat).toLowerCase();
     return words.every(w => text.includes(w));
   }).slice(0, 14);
@@ -802,20 +804,25 @@ function _kfUpdateSearch(q) {
       <span style="font-size:11px;color:var(--text3)">${e.unit}</span>
     </div>`
   );
-  if (qOrig && !EXERCISE_DB.some(e => e.name.toLowerCase() === qOrig.toLowerCase())) {
-    items.push(`<div onclick="kfAddExFromDB('${qOrig.replace(/'/g,"\\'")}','kg/Wdh')"
+  if (qOrig && !allEx.some(e => e.name.toLowerCase() === qOrig.toLowerCase())) {
+    items.push(`<div onclick="kfAddExFromDBNew('${qOrig.replace(/'/g,"\\'")}','kg/Wdh')"
       style="padding:10px 12px;cursor:pointer;font-size:14px;color:var(--accent)"
       onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-      ＋ "${qOrig}" als eigene Übung
+      ＋ "${qOrig}" als eigene Übung hinzufügen &amp; speichern
     </div>`);
   }
   el.innerHTML = items.join('') || `<div style="padding:10px 12px;font-size:14px;color:var(--text3)">Keine Treffer</div>
-    <div onclick="kfAddExFromDB('${qOrig.replace(/'/g,"\\'")}','kg/Wdh')"
+    <div onclick="kfAddExFromDBNew('${qOrig.replace(/'/g,"\\'")}','kg/Wdh')"
       style="padding:10px 12px;cursor:pointer;font-size:14px;color:var(--accent)"
       onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-      ＋ "${qOrig}" als eigene Übung
+      ＋ "${qOrig}" als eigene Übung hinzufügen &amp; speichern
     </div>`;
   el.style.display = 'block';
+}
+
+function kfAddExFromDBNew(name, unit) {
+  addToCustomExDB(name, unit || 'kg/Wdh', 'Eigene');
+  kfAddExFromDB(name, unit || 'kg/Wdh');
 }
 
 function kfAddExFromDB(name, unit) {
@@ -1407,6 +1414,138 @@ const EXERCISE_DB = [
   {cat:'HIIT',name:'HIIT: SkiErg frei',unit:'Sek/Runde'},
 ];
 
+function getAllExercises() {
+  const custom = (DATA.settings.customExDB || []).filter(
+    e => !EXERCISE_DB.some(d => d.name.toLowerCase() === e.name.toLowerCase())
+  );
+  return [...EXERCISE_DB, ...custom];
+}
+
+function addToCustomExDB(name, unit, cat) {
+  if (!name.trim()) return;
+  const db = DATA.settings.customExDB || [];
+  const all = getAllExercises();
+  if (all.some(e => e.name.toLowerCase() === name.toLowerCase())) return;
+  db.push({ cat: cat || 'Eigene', name: name.trim(), unit: unit || 'kg/Wdh' });
+  DATA.settings.customExDB = db;
+  save();
+}
+
+function renderExDBListHTML(q) {
+  const custom = DATA.settings.customExDB || [];
+  const ql = (q || '').trim().toLowerCase();
+  const filtered = custom.filter(e =>
+    !ql || (e.name + ' ' + e.cat).toLowerCase().includes(ql)
+  );
+  if (!filtered.length) {
+    return `<div style="font-size:13px;color:var(--text3);padding:8px 0">${ql ? 'Keine Treffer' : 'Noch keine eigenen Übungen'}</div>`;
+  }
+  return filtered.map((e, i) => {
+    const realIdx = custom.indexOf(e);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600">${e.name}</div>
+        <div style="font-size:11px;color:var(--text3)">${e.cat} · ${e.unit}</div>
+      </div>
+      <button onclick="openEditExDBDialog(${realIdx})" style="padding:5px 10px;font-size:12px">✎</button>
+      <button onclick="deleteCustomEx(${realIdx})" style="padding:5px 10px;font-size:12px;background:var(--danger,#e53e3e);color:#fff;border:none">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderExDBList(q) {
+  const el = document.getElementById('exdb-list');
+  if (el) el.innerHTML = renderExDBListHTML(q);
+}
+
+function deleteCustomEx(idx) {
+  const db = DATA.settings.customExDB || [];
+  if (idx < 0 || idx >= db.length) return;
+  if (!confirm(`"${db[idx].name}" löschen?`)) return;
+  db.splice(idx, 1);
+  DATA.settings.customExDB = db;
+  save();
+  renderExDBList(document.getElementById('exdb-search')?.value || '');
+}
+
+function openAddExDBDialog() {
+  const overlay = document.createElement('div');
+  overlay.id = 'exdb-dialog';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--bg1);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px">
+      <div style="font-size:16px;font-weight:700;margin-bottom:16px">Neue Übung</div>
+      <input id="exdb-new-name" type="text" placeholder="Name" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:14px;margin-bottom:10px;box-sizing:border-box">
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <select id="exdb-new-unit" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:14px">
+          <option value="kg/Wdh">kg / Wdh</option>
+          <option value="sek">Sekunden</option>
+          <option value="Wdh">Wiederholungen</option>
+          <option value="m">Meter</option>
+        </select>
+        <input id="exdb-new-cat" type="text" placeholder="Kategorie (z.B. Push)" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:14px">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('exdb-dialog').remove()" style="flex:1;background:var(--bg3)">Abbrechen</button>
+        <button onclick="saveNewExDB()" style="flex:1">Speichern</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('exdb-new-name').focus();
+}
+
+function saveNewExDB() {
+  const name = document.getElementById('exdb-new-name')?.value?.trim() || '';
+  const unit = document.getElementById('exdb-new-unit')?.value || 'kg/Wdh';
+  const cat  = document.getElementById('exdb-new-cat')?.value?.trim() || 'Eigene';
+  if (!name) { alert('Name eingeben'); return; }
+  addToCustomExDB(name, unit, cat);
+  document.getElementById('exdb-dialog')?.remove();
+  renderExDBList(document.getElementById('exdb-search')?.value || '');
+}
+
+function openEditExDBDialog(idx) {
+  const db = DATA.settings.customExDB || [];
+  const e = db[idx];
+  if (!e) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'exdb-dialog';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--bg1);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px">
+      <div style="font-size:16px;font-weight:700;margin-bottom:16px">Übung bearbeiten</div>
+      <input id="exdb-edit-name" type="text" value="${e.name.replace(/"/g,'&quot;')}" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:14px;margin-bottom:10px;box-sizing:border-box">
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <select id="exdb-edit-unit" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:14px">
+          <option value="kg/Wdh" ${e.unit==='kg/Wdh'?'selected':''}>kg / Wdh</option>
+          <option value="sek" ${e.unit==='sek'?'selected':''}>Sekunden</option>
+          <option value="Wdh" ${e.unit==='Wdh'?'selected':''}>Wiederholungen</option>
+          <option value="m" ${e.unit==='m'?'selected':''}>Meter</option>
+        </select>
+        <input id="exdb-edit-cat" type="text" value="${(e.cat||'Eigene').replace(/"/g,'&quot;')}" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:14px">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('exdb-dialog').remove()" style="flex:1;background:var(--bg3)">Abbrechen</button>
+        <button onclick="saveExDBEdit(${idx})" style="flex:1">Speichern</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function saveExDBEdit(idx) {
+  const db = DATA.settings.customExDB || [];
+  if (!db[idx]) return;
+  const name = document.getElementById('exdb-edit-name')?.value?.trim() || '';
+  const unit = document.getElementById('exdb-edit-unit')?.value || 'kg/Wdh';
+  const cat  = document.getElementById('exdb-edit-cat')?.value?.trim() || 'Eigene';
+  if (!name) { alert('Name eingeben'); return; }
+  db[idx] = { ...db[idx], name, unit, cat };
+  DATA.settings.customExDB = db;
+  save();
+  document.getElementById('exdb-dialog')?.remove();
+  renderExDBList(document.getElementById('exdb-search')?.value || '');
+}
+
 // ── MANUELLES KRAFTTRAINING ────────────────────────────────
 let manuelleExs = []; // [{name, unit, sets:[{v1,v2}]}]
 
@@ -1423,12 +1562,16 @@ function _readManuelleFromDOM() {
   });
 }
 
+function addManuelleExNew(name, unit) {
+  addToCustomExDB(name, unit || 'kg/Wdh', 'Eigene');
+  addManuelleEx(name, unit || 'kg/Wdh');
+}
+
 function addManuelleEx(name, unit) {
   _readManuelleFromDOM();
   manuelleExs.push({name, unit: unit||'kg/Wdh', sets:[{v1:'',v2:''},{v1:'',v2:''},{v1:'',v2:''}]});
   _renderManuellList();
   document.getElementById('mx-search')?.focus();
-  // clear search
   document.getElementById('mx-search').value = '';
   _updateManuellSearch('');
 }
@@ -1490,7 +1633,8 @@ function _updateManuellSearch(q) {
   q = q.trim().toLowerCase();
   if (!q) { el.innerHTML = ''; el.style.display='none'; return; }
   const words = q.split(/\s+/).filter(Boolean);
-  const matches = EXERCISE_DB.filter(e => {
+  const allEx = getAllExercises();
+  const matches = allEx.filter(e => {
     const text = (e.name + ' ' + e.cat).toLowerCase();
     return words.every(w => text.includes(w));
   }).slice(0, 12);
@@ -1503,20 +1647,20 @@ function _updateManuellSearch(q) {
       <span style="font-size:11px;color:var(--text3)">${e.unit}</span>
     </div>`
   );
-  // Freitext-Option immer unten
+  // Freitext-Option wenn nicht in DB
   const qOrig = document.getElementById('mx-search')?.value?.trim() || '';
-  if (qOrig && !EXERCISE_DB.some(e => e.name.toLowerCase() === qOrig.toLowerCase())) {
-    items.push(`<div onclick="addManuelleEx('${qOrig.replace(/'/g,"\\'")}','kg/Wdh')"
+  if (qOrig && !allEx.some(e => e.name.toLowerCase() === qOrig.toLowerCase())) {
+    items.push(`<div onclick="addManuelleExNew('${qOrig.replace(/'/g,"\\'")}','kg/Wdh')"
       style="padding:10px 12px;cursor:pointer;font-size:14px;color:var(--accent)"
       onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-      ＋ "${qOrig}" als eigene Übung hinzufügen
+      ＋ "${qOrig}" als eigene Übung hinzufügen &amp; speichern
     </div>`);
   }
-  el.innerHTML = items.join('') || `<div style="padding:10px 12px;font-size:14px;color:var(--text3)">Keine Treffer – unten als eigene Übung hinzufügen.</div>
-    <div onclick="addManuelleEx('${q.replace(/'/g,"\\'")}','kg/Wdh')"
+  el.innerHTML = items.join('') || `<div style="padding:10px 12px;font-size:14px;color:var(--text3)">Keine Treffer</div>
+    <div onclick="addManuelleExNew('${q.replace(/'/g,"\\'")}','kg/Wdh')"
       style="padding:10px 12px;cursor:pointer;font-size:14px;color:var(--accent)"
       onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-      ＋ "${q}" als eigene Übung hinzufügen
+      ＋ "${q}" als eigene Übung hinzufügen &amp; speichern
     </div>`;
   el.style.display = 'block';
 }
@@ -2829,6 +2973,7 @@ async function gistSync(callback) {
         if (ps.customExA)     DATA.settings.customExA     = ps.customExA;
         if (ps.customExB)     DATA.settings.customExB     = ps.customExB;
         if (ps.hrZones)       DATA.settings.hrZones        = ps.hrZones;
+        if (ps.customExDB)    DATA.settings.customExDB     = ps.customExDB;
       }
       if (added > 0 || remote.planSettings) {
         save(); renderHeute(); renderPlan();
@@ -2847,6 +2992,7 @@ async function gistSync(callback) {
           customExA:     DATA.settings.customExA     || null,
           customExB:     DATA.settings.customExB     || null,
           hrZones:       DATA.settings.hrZones,
+          customExDB:    DATA.settings.customExDB    || [],
         },
         ts: Date.now()
       })}}})
@@ -2946,6 +3092,20 @@ function renderSettings() {
           })()}
         </select>
         <button onclick="openKWEditor(document.getElementById('plan-edit-kw').value)" style="font-size:13px;padding:8px 14px">Bearbeiten</button>
+      </div>
+    </div>
+
+    <div class="sec">Übungsdatenbank</div>
+    <div class="card">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px">
+        Eigene Übungen werden automatisch gespeichert wenn du sie beim Training eingibst. Hier kannst du sie verwalten.
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="exdb-search" type="search" placeholder="Suche..." style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:14px" oninput="renderExDBList(this.value)">
+        <button onclick="openAddExDBDialog()" style="padding:8px 14px;font-size:14px">＋ Neu</button>
+      </div>
+      <div id="exdb-list">
+        ${renderExDBListHTML('')}
       </div>
     </div>
 
