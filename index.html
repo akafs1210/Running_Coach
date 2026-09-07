@@ -439,8 +439,11 @@ function openKWEditor(key) {
 
 function saveKWEditor(key, kw, yr, baseLR) {
   const overrides = DATA.settings.planOverrides || {};
-  const newLR    = parseInt(document.getElementById('ed-lr').value) || baseLR;
-  const cascade  = document.getElementById('ed-cascade').checked;
+  const newLR   = parseInt(document.getElementById('ed-lr').value) || baseLR;
+  const newThr  = parseInt(document.getElementById('ed-thr').value) || 0;
+  const newZ2   = parseInt(document.getElementById('ed-z2').value) || 0;
+  const newR    = document.getElementById('ed-r').checked;
+  const cascade = document.getElementById('ed-cascade').checked;
   // Workout-Typ → label/text/btn Mapping (gleiche Liste wie im Editor)
   const eff2 = getEffectivePlan(kw, yr) || {};
   const WL = {
@@ -467,10 +470,6 @@ function saveKWEditor(key, kw, yr, baseLR) {
     const mapped = WL[sel] || {label: sel, text:'', btn: sel};
     days[d] = mapped;
   }
-  const newThr  = parseInt(document.getElementById('ed-thr').value) || 0;
-  const newZ2   = parseInt(document.getElementById('ed-z2').value) || 0;
-  const newR    = document.getElementById('ed-r').checked;
-
   // intv: Dienstag-Dropdown hat Vorrang vor Checkbox
   const diSel = document.getElementById('day-btn-2')?.value || '__std__';
   let newIntv = document.getElementById('ed-intv').checked;
