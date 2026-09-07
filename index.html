@@ -2978,7 +2978,17 @@ async function gistSync(callback) {
         if (ps.customExA)     DATA.settings.customExA     = ps.customExA;
         if (ps.customExB)     DATA.settings.customExB     = ps.customExB;
         if (ps.hrZones)       DATA.settings.hrZones        = ps.hrZones;
-        if (ps.customExDB)    DATA.settings.customExDB     = ps.customExDB;
+        if (ps.customExDB && Array.isArray(ps.customExDB)) {
+          // Merge: union of local + remote; remote wins on same name
+          const local = DATA.settings.customExDB || [];
+          const merged = [...ps.customExDB];
+          local.forEach(le => {
+            if (!merged.some(re => re.name.toLowerCase() === le.name.toLowerCase())) merged.push(le);
+          });
+          DATA.settings.customExDB = merged;
+        } else if (!ps.customExDB) {
+          // Remote hat kein customExDB (alter Gist) → lokal behalten
+        }
       }
       if (added > 0 || remote.planSettings) {
         save(); renderHeute(); renderPlan();
