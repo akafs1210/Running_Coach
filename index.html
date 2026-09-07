@@ -1434,12 +1434,13 @@ function addToCustomExDB(name, unit, cat) {
 function renderExDBListHTML(q) {
   const custom = DATA.settings.customExDB || [];
   const ql = (q || '').trim().toLowerCase();
-  const all = getAllExercises();
+  // Ohne Suchbegriff nur eigene Übungen zeigen
+  const all = ql ? getAllExercises() : custom;
   const filtered = all.filter(e =>
     !ql || (e.name + ' ' + e.cat).toLowerCase().includes(ql)
   );
   if (!filtered.length) {
-    return `<div style="font-size:13px;color:var(--text3);padding:8px 0">Keine Treffer</div>`;
+    return `<div style="font-size:13px;color:var(--text3);padding:8px 0">${ql ? 'Keine Treffer' : 'Noch keine eigenen Übungen – beim Training eingeben oder ＋ Neu nutzen'}</div>`;
   }
   return filtered.map(e => {
     const customIdx = custom.findIndex(c => c.name.toLowerCase() === e.name.toLowerCase());
