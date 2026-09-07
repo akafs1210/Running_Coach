@@ -447,11 +447,11 @@ function saveKWEditor(key, kw, yr, baseLR) {
     kraft_a:       {label:'Mo – Kraft PUSH 💪',      text:'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT', btn:'kraft_a'},
     kraft_b:       {label:'Do – Kraft PULL 💪',      text:'Einb. RDL · Farmers Carry · Sled/Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT', btn:'kraft_b'},
     kraft_manuell: {label:'Kraft Manuell ✏️',        text:'Freies Krafttraining', btn:'kraft_manuell'},
-    longrun:       {label:'Longrun 🏃',              text:`${eff2.lr||0} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`, btn:'longrun'},
-    threshold:     {label:'Threshold 🔥',            text:`${eff2.thr||0} km @ ~4:40–5:00/km | HR 158–168`, btn:'threshold'},
+    longrun:       {label:'Longrun 🏃',              text:`${newLR} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`, btn:'longrun'},
+    threshold:     {label:'Threshold 🔥',            text:`${newThr||eff2.thr||0} km @ ~4:40–5:00/km | HR 158–168`, btn:'threshold'},
     interval:      {label:'Intervall ⚡',            text:'5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~10km', btn:'interval'},
-    z2:            {label:'Z2 Lauf 🌿',              text:`${eff2.z2||0} km | HR 136–142 bpm | ~5:30–6:20/km`, btn:'z2'},
-    rennrad:       {label:'Rennrad 🚴',              text:`${eff2.radLo||40}–${eff2.radHi||60} km | HR ≤ 148 bpm`, btn:'rennrad'},
+    z2:            {label:'Z2 Lauf 🌿',              text:`${newZ2||eff2.z2||0} km | HR 136–142 bpm | ~5:30–6:20/km`, btn:'z2'},
+    rennrad:       {label:'Rennrad 🚴',              text:`${parseInt(document.getElementById('ed-radLo')?.value)||eff2.radLo||40}–${parseInt(document.getElementById('ed-radHi')?.value)||eff2.radHi||60} km | HR ≤ 148 bpm`, btn:'rennrad'},
     mtb:           {label:'MTB 🏔️',                 text:'MTB', btn:'mtb'},
     ebike:         {label:'E-Bike ⚡',               text:'E-Bike', btn:'ebike'},
     wandern:       {label:'Wandern 🥾',              text:'Wandern', btn:'wandern'},
@@ -467,15 +467,38 @@ function saveKWEditor(key, kw, yr, baseLR) {
     const mapped = WL[sel] || {label: sel, text:'', btn: sel};
     days[d] = mapped;
   }
+  const newThr  = parseInt(document.getElementById('ed-thr').value) || 0;
+  const newZ2   = parseInt(document.getElementById('ed-z2').value) || 0;
+  const newR    = document.getElementById('ed-r').checked;
+
+  // intv: Dienstag-Dropdown hat Vorrang vor Checkbox
+  const diSel = document.getElementById('day-btn-2')?.value || '__std__';
+  let newIntv = document.getElementById('ed-intv').checked;
+  if (diSel === 'interval')  newIntv = true;
+  if (diSel === 'threshold') newIntv = false;
+
+  // lauf-Total automatisch aus Einzeldistanzen berechnen
+  const newLauf = newR ? (getPlan(kw, yr)?.lauf || 0) : (newLR + newThr + newZ2);
+
+  // Hint: alten Intervall/Threshold-Hinweis ausblenden wenn sich intv ändert
+  let newHint = document.getElementById('ed-hint').value.trim() || null;
+  const oldIntv = (getPlan(kw, yr) || {}).intv;
+  if (newHint && oldIntv !== newIntv) {
+    // Automatisch generierten Hinweis löschen wenn Typ gewechselt
+    const autoHints = ['⚡ Di: Intervall', 'LR nur 17 km', 'Di: Intervall'];
+    if (autoHints.some(h => newHint.includes(h))) newHint = null;
+  }
+
   overrides[key] = {
     lr:    newLR,
-    thr:   parseInt(document.getElementById('ed-thr').value) || undefined,
-    z2:    parseInt(document.getElementById('ed-z2').value) || undefined,
-    intv:  document.getElementById('ed-intv').checked,
-    r:     document.getElementById('ed-r').checked,
+    thr:   newThr || undefined,
+    z2:    newZ2 || undefined,
+    lauf:  newLauf || undefined,
+    intv:  newIntv,
+    r:     newR,
     radLo: parseInt(document.getElementById('ed-radLo').value) || 0,
     radHi: parseInt(document.getElementById('ed-radHi').value) || 0,
-    hint:  document.getElementById('ed-hint').value.trim() || null,
+    hint:  newHint,
     days,
   };
   DATA.settings.planOverrides = overrides;
