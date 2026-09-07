@@ -332,33 +332,52 @@ function openKWEditor(key) {
   const days = eff.days || {};
 
   const DAY_NAMES = {1:'Mo',2:'Di',3:'Mi',4:'Do',5:'Fr',6:'Sa',0:'So'};
-  const BTNS = {kraft_a:'Kraft A',kraft_b:'Kraft B',longrun:'Longrun',threshold:'Threshold',interval:'Intervall',z2:'Z2',rennrad:'Rennrad',mtb:'MTB','null':'–'};
-  const BTN_OPTS = ['kraft_a','kraft_b','longrun','threshold','interval','z2','rennrad','mtb','null'];
+
+  // Workout-Typen mit Label, Beschreibung-Template und Emoji
+  const WORKOUT_TYPES = [
+    {v:'__std__',      label:'Standard (automatisch)',  emoji:'',   text:''},
+    {v:'kraft_a',      label:'Kraft A – Push 💪',       emoji:'💪', text:'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT'},
+    {v:'kraft_b',      label:'Kraft B – Pull 🏋️',      emoji:'🏋️',text:'Einb. RDL · Farmers Carry · Sled/Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT'},
+    {v:'kraft_manuell',label:'Kraft Manuell ✏️',        emoji:'✏️', text:'Freies Krafttraining'},
+    {v:'longrun',      label:'Longrun 🏃',              emoji:'🏃', text:`${eff.lr} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`},
+    {v:'threshold',    label:'Threshold 🔥',            emoji:'🔥', text:`${eff.thr} km @ ~4:40–5:00/km | HR 158–168`},
+    {v:'interval',     label:'Intervall ⚡',            emoji:'⚡', text:'5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~10km'},
+    {v:'z2',           label:'Z2 Lauf 🌿',              emoji:'🌿', text:`${eff.z2} km | HR 136–142 bpm | ~5:30–6:20/km`},
+    {v:'rennrad',      label:'Rennrad 🚴',              emoji:'🚴', text:`${eff.radLo||40}–${eff.radHi||60} km | HR ≤ 148 bpm`},
+    {v:'mtb',          label:'MTB 🏔️',                 emoji:'🏔️',text:'MTB'},
+    {v:'ebike',        label:'E-Bike ⚡',               emoji:'⚡', text:'E-Bike'},
+    {v:'wandern',      label:'Wandern 🥾',              emoji:'🥾', text:'Wandern'},
+    {v:'schwimmen',    label:'Schwimmen 🏊',            emoji:'🏊', text:'Schwimmen'},
+    {v:'surfen',       label:'Surfen 🏄',               emoji:'🏄', text:'Surfen'},
+    {v:'__recovery__', label:'Recovery / Pause 😴',     emoji:'😴', text:'Plyometrics 30 Min oder Pause & Mobility'},
+    {v:'__rest__',     label:'Pause / Ruhetag 💤',      emoji:'💤', text:'Aktive Erholung: Spazieren, Schwimmen, E-Bike'},
+  ];
 
   const dayPlanBase = {
-    1:{label:'Mo – Kraft PUSH 💪',text:'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT',btn:'kraft_a'},
-    2:{label:eff.intv?'Di – Intervall 🏃⚡':'Di – Threshold 🔥',text:eff.intv?`5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~10km`:`${eff.thr} km @ ~4:40–5:00/km | HR 158–168`,btn:eff.intv?'interval':'threshold'},
-    3:{label:'Mi – Z2 Lauf 🏃',text:`${eff.z2} km | HR 136–142 bpm | ~5:30–6:20/km`,btn:'z2'},
-    4:{label:'Do – Kraft PULL 💪',text:'Einb. RDL · Farmers Carry · Sled/Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT',btn:'kraft_b'},
-    5:{label:'Fr – Recovery / Plyo 🦘',text:'Plyometrics 30 Min oder Pause & Mobility',btn:null},
-    6:{label:eff.r?'Sa – Rennrad 🚴':'Sa – Longrun 🏃',text:eff.r?`${eff.radLo}–${eff.radHi} km | HR ≤ 148 bpm`:`${eff.lr} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`,btn:eff.r?'rennrad':'longrun'},
-    0:{label:'So – Pause 😴',text:'Aktive Erholung: Spazieren, Schwimmen, E-Bike',btn:null},
+    1:{btn:'kraft_a'},
+    2:{btn:eff.intv?'interval':'threshold'},
+    3:{btn:'z2'},
+    4:{btn:'kraft_b'},
+    5:{btn:'__recovery__'},
+    6:{btn:eff.r?'rennrad':'longrun'},
+    0:{btn:'__rest__'},
   };
 
   const daysHtml = [1,2,3,4,5,6,0].map(d => {
-    const combined = days[d] ? {...dayPlanBase[d], ...days[d]} : dayPlanBase[d];
-    const btnSel = BTN_OPTS.map(b => `<option value="${b}" ${(combined.btn||'null')===b?'selected':''}>${BTNS[b]||b}</option>`).join('');
-    return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">
-      <div style="font-weight:600;font-size:13px;margin-bottom:6px">${DAY_NAMES[d]} (${d})</div>
-      <div class="form-group" style="margin-bottom:6px"><label style="font-size:11px">Titel</label>
-        <input type="text" id="day-label-${d}" value="${combined.label}" style="font-size:13px">
-      </div>
-      <div class="form-group" style="margin-bottom:6px"><label style="font-size:11px">Beschreibung</label>
-        <input type="text" id="day-text-${d}" value="${combined.text}" style="font-size:12px">
-      </div>
-      <div class="form-group"><label style="font-size:11px">Button-Typ</label>
-        <select id="day-btn-${d}" style="font-size:13px">${btnSel}</select>
-      </div>
+    const savedBtn = days[d]?.btn;
+    // Convert null-saved btn back to __rest__ / __recovery__ for display
+    const currentBtn = savedBtn === null
+      ? (d === 0 ? '__rest__' : '__recovery__')
+      : (savedBtn || '__std__');
+    const isCustom = !!days[d]?.btn || days[d]?.btn === null;
+    const selVal = isCustom ? currentBtn : '__std__';
+    const opts = WORKOUT_TYPES.map(w =>
+      `<option value="${w.v}" ${w.v===selVal?'selected':''}>${w.label}</option>`
+    ).join('');
+    const baseLabel = DAY_NAMES[d];
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="width:26px;font-size:13px;font-weight:600;color:var(--text2);flex-shrink:0">${baseLabel}</span>
+      <select id="day-btn-${d}" style="flex:1;font-size:13px">${opts}</select>
     </div>`;
   }).join('');
 
@@ -419,12 +438,31 @@ function saveKWEditor(key, kw, yr, baseLR) {
   const overrides = DATA.settings.planOverrides || {};
   const newLR    = parseInt(document.getElementById('ed-lr').value) || baseLR;
   const cascade  = document.getElementById('ed-cascade').checked;
-  const days     = {};
+  // Workout-Typ → label/text/btn Mapping (gleiche Liste wie im Editor)
+  const eff2 = getEffectivePlan(kw, yr) || {};
+  const WL = {
+    kraft_a:       {label:'Mo – Kraft PUSH 💪',      text:'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT', btn:'kraft_a'},
+    kraft_b:       {label:'Do – Kraft PULL 💪',      text:'Einb. RDL · Farmers Carry · Sled/Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT', btn:'kraft_b'},
+    kraft_manuell: {label:'Kraft Manuell ✏️',        text:'Freies Krafttraining', btn:'kraft_manuell'},
+    longrun:       {label:'Longrun 🏃',              text:`${eff2.lr||0} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`, btn:'longrun'},
+    threshold:     {label:'Threshold 🔥',            text:`${eff2.thr||0} km @ ~4:40–5:00/km | HR 158–168`, btn:'threshold'},
+    interval:      {label:'Intervall ⚡',            text:'5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~10km', btn:'interval'},
+    z2:            {label:'Z2 Lauf 🌿',              text:`${eff2.z2||0} km | HR 136–142 bpm | ~5:30–6:20/km`, btn:'z2'},
+    rennrad:       {label:'Rennrad 🚴',              text:`${eff2.radLo||40}–${eff2.radHi||60} km | HR ≤ 148 bpm`, btn:'rennrad'},
+    mtb:           {label:'MTB 🏔️',                 text:'MTB', btn:'mtb'},
+    ebike:         {label:'E-Bike ⚡',               text:'E-Bike', btn:'ebike'},
+    wandern:       {label:'Wandern 🥾',              text:'Wandern', btn:'wandern'},
+    schwimmen:     {label:'Schwimmen 🏊',            text:'Schwimmen', btn:'schwimmen'},
+    surfen:        {label:'Surfen 🏄',               text:'Surfen', btn:'surfen'},
+    __recovery__:  {label:'Recovery / Plyo 🦘',      text:'Plyometrics 30 Min oder Pause & Mobility', btn:null},
+    __rest__:      {label:'Pause 😴',                text:'Aktive Erholung: Spazieren, Schwimmen, E-Bike', btn:null},
+  };
+  const days = {};
   for (const d of [0,1,2,3,4,5,6]) {
-    const label = document.getElementById(`day-label-${d}`)?.value || '';
-    const text  = document.getElementById(`day-text-${d}`)?.value || '';
-    const btn   = document.getElementById(`day-btn-${d}`)?.value || 'null';
-    days[d] = { label, text, btn: btn === 'null' ? null : btn };
+    const sel = document.getElementById(`day-btn-${d}`)?.value || '__std__';
+    if (sel === '__std__') continue; // Standard → kein Override
+    const mapped = WL[sel] || {label: sel, text:'', btn: sel};
+    days[d] = mapped;
   }
   overrides[key] = {
     lr:    newLR,
