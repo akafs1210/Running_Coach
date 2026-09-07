@@ -365,14 +365,17 @@ function openKWEditor(key) {
 
   const daysHtml = [1,2,3,4,5,6,0].map(d => {
     const savedBtn = days[d]?.btn;
-    // Convert null-saved btn back to __rest__ / __recovery__ for display
     const currentBtn = savedBtn === null
       ? (d === 0 ? '__rest__' : '__recovery__')
       : (savedBtn || '__std__');
     const isCustom = !!days[d]?.btn || days[d]?.btn === null;
     const selVal = isCustom ? currentBtn : '__std__';
+    // Label for Standard option shows what the default actually is
+    const defaultBtn = dayPlanBase[d].btn;
+    const defaultWt = WORKOUT_TYPES.find(w => w.v === (defaultBtn || (d===0?'__rest__':'__recovery__')));
+    const stdLabel = `Standard – ${defaultWt ? defaultWt.label : '–'}`;
     const opts = WORKOUT_TYPES.map(w =>
-      `<option value="${w.v}" ${w.v===selVal?'selected':''}>${w.label}</option>`
+      `<option value="${w.v}" ${w.v===selVal?'selected':''}>${w.v==='__std__' ? stdLabel : w.label}</option>`
     ).join('');
     const baseLabel = DAY_NAMES[d];
     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
