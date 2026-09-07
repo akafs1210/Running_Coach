@@ -1429,6 +1429,7 @@ function addToCustomExDB(name, unit, cat) {
   db.push({ cat: cat || 'Eigene', name: name.trim(), unit: unit || 'kg/Wdh' });
   DATA.settings.customExDB = db;
   save();
+  trySync();
 }
 
 function renderExDBListHTML(q) {
@@ -1469,7 +1470,7 @@ function deleteCustomEx(idx) {
   if (!confirm(`"${db[idx].name}" löschen?`)) return;
   db.splice(idx, 1);
   DATA.settings.customExDB = db;
-  save();
+  save(); trySync();
   renderExDBList(document.getElementById('exdb-search')?.value || '');
 }
 
@@ -1546,7 +1547,7 @@ function saveExDBEdit(idx) {
   if (!name) { alert('Name eingeben'); return; }
   db[idx] = { ...db[idx], name, unit, cat };
   DATA.settings.customExDB = db;
-  save();
+  save(); trySync();
   document.getElementById('exdb-dialog')?.remove();
   renderExDBList(document.getElementById('exdb-search')?.value || '');
 }
