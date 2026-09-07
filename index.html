@@ -2822,15 +2822,32 @@ async function gistSync(callback) {
           DATA.entries.push({...re, synced:true}); added++;
         }
       });
-      if (added > 0) { save(); renderHeute(); showToast(`↓ ${added} Einträge geladen`); }
+      // Plan-Settings mergen (neuere Seite gewinnt, Remote überschreibt lokal)
+      if (remote.planSettings) {
+        const ps = remote.planSettings;
+        if (ps.planOverrides) DATA.settings.planOverrides = ps.planOverrides;
+        if (ps.customExA)     DATA.settings.customExA     = ps.customExA;
+        if (ps.customExB)     DATA.settings.customExB     = ps.customExB;
+        if (ps.hrZones)       DATA.settings.hrZones        = ps.hrZones;
+      }
+      if (added > 0 || remote.planSettings) {
+        save(); renderHeute(); renderPlan();
+        if (added > 0) showToast(`↓ ${added} Einträge geladen`);
+      }
     }
 
-    // Alle Daten hochladen (inkl. Löschliste)
+    // Alle Daten hochladen (inkl. Löschliste + Plan-Settings)
     await fetch(`https://api.github.com/gists/${gistId}`, {
       method: 'PATCH', headers,
       body: JSON.stringify({files:{[GIST_FILE]:{content: JSON.stringify({
         entries: DATA.entries,
         deletedIds: [...getDeletedIds()],
+        planSettings: {
+          planOverrides: DATA.settings.planOverrides || {},
+          customExA:     DATA.settings.customExA     || null,
+          customExB:     DATA.settings.customExB     || null,
+          hrZones:       DATA.settings.hrZones,
+        },
         ts: Date.now()
       })}}})
     });
