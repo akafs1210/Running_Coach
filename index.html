@@ -276,6 +276,7 @@ function defaultData() {
       hrZones: {z1:136,z2:142,z3:158,z4:168,max:195},
       customExA: null,
       customExB: null,
+      planOverrides: {},
     }
   };
 }
@@ -294,8 +295,284 @@ function getISOWeek(d) {
 }
 function currentKW() { return getISOWeek(new Date()); }
 function getPlan(kw, yr) { return PLAN.find(p => p.kw === kw && p.yr === yr) || null; }
+function planKey(kw, yr) { return `${yr}_${String(kw).padStart(2,'0')}`; }
+function getEffectivePlan(kw, yr) {
+  const base = getPlan(kw, yr);
+  if (!base) return null;
+  const ov = (DATA.settings.planOverrides || {})[planKey(kw, yr)];
+  return ov ? { ...base, ...ov } : base;
+}
 function getEntries(kw, yr) { return DATA.entries.filter(e => e.kw === kw && e.yr === yr); }
 function todayStr() { return new Date().toISOString().slice(0,10); }
+
+// ── PLAN EDITOR ────────────────────────────────────────────
+function cascadeLR(fromKW, fromYR, delta) {
+  if (!delta) return;
+  const overrides = DATA.settings.planOverrides || {};
+  const idx = PLAN.findIndex(p => p.kw === fromKW && p.yr === fromYR);
+  for (let i = idx + 1; i < PLAN.length; i++) {
+    const p = PLAN[i];
+    if (p.r || p.intv) continue;
+    const k = planKey(p.kw, p.yr);
+    const existing = overrides[k] || {};
+    const current = existing.lr !== undefined ? existing.lr : p.lr;
+    overrides[k] = { ...existing, lr: Math.max(1, current + delta) };
+  }
+  DATA.settings.planOverrides = overrides;
+}
+
+function openKWEditor(key) {
+  const [yr, kwPad] = key.split('_');
+  const kw = parseInt(kwPad), year = parseInt(yr);
+  const base = getPlan(kw, year);
+  if (!base) return;
+  const eff = getEffectivePlan(kw, year);
+  const overrides = DATA.settings.planOverrides || {};
+  const ov = overrides[key] || {};
+  const days = eff.days || {};
+
+  const DAY_NAMES = {1:'Mo',2:'Di',3:'Mi',4:'Do',5:'Fr',6:'Sa',0:'So'};
+  const BTNS = {kraft_a:'Kraft A',kraft_b:'Kraft B',longrun:'Longrun',threshold:'Threshold',interval:'Intervall',z2:'Z2',rennrad:'Rennrad',mtb:'MTB','null':'–'};
+  const BTN_OPTS = ['kraft_a','kraft_b','longrun','threshold','interval','z2','rennrad','mtb','null'];
+
+  const dayPlanBase = {
+    1:{label:'Mo – Kraft PUSH 💪',text:'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT',btn:'kraft_a'},
+    2:{label:eff.intv?'Di – Intervall 🏃⚡':'Di – Threshold 🔥',text:eff.intv?`5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~10km`:`${eff.thr} km @ ~4:40–5:00/km | HR 158–168`,btn:eff.intv?'interval':'threshold'},
+    3:{label:'Mi – Z2 Lauf 🏃',text:`${eff.z2} km | HR 136–142 bpm | ~5:30–6:20/km`,btn:'z2'},
+    4:{label:'Do – Kraft PULL 💪',text:'Einb. RDL · Farmers Carry · Sled/Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT',btn:'kraft_b'},
+    5:{label:'Fr – Recovery / Plyo 🦘',text:'Plyometrics 30 Min oder Pause & Mobility',btn:null},
+    6:{label:eff.r?'Sa – Rennrad 🚴':'Sa – Longrun 🏃',text:eff.r?`${eff.radLo}–${eff.radHi} km | HR ≤ 148 bpm`:`${eff.lr} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`,btn:eff.r?'rennrad':'longrun'},
+    0:{label:'So – Pause 😴',text:'Aktive Erholung: Spazieren, Schwimmen, E-Bike',btn:null},
+  };
+
+  const daysHtml = [1,2,3,4,5,6,0].map(d => {
+    const combined = days[d] ? {...dayPlanBase[d], ...days[d]} : dayPlanBase[d];
+    const btnSel = BTN_OPTS.map(b => `<option value="${b}" ${(combined.btn||'null')===b?'selected':''}>${BTNS[b]||b}</option>`).join('');
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:6px">${DAY_NAMES[d]} (${d})</div>
+      <div class="form-group" style="margin-bottom:6px"><label style="font-size:11px">Titel</label>
+        <input type="text" id="day-label-${d}" value="${combined.label}" style="font-size:13px">
+      </div>
+      <div class="form-group" style="margin-bottom:6px"><label style="font-size:11px">Beschreibung</label>
+        <input type="text" id="day-text-${d}" value="${combined.text}" style="font-size:12px">
+      </div>
+      <div class="form-group"><label style="font-size:11px">Button-Typ</label>
+        <select id="day-btn-${d}" style="font-size:13px">${btnSel}</select>
+      </div>
+    </div>`;
+  }).join('');
+
+  const el = document.getElementById('kw-editor-overlay');
+  if (el) el.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'kw-editor-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9100;display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--card);width:100%;max-width:600px;border-radius:16px 16px 0 0;padding:16px;max-height:90vh;display:flex;flex-direction:column;gap:0;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0">
+        <span style="font-weight:700;font-size:16px">KW ${kw}/${year} bearbeiten</span>
+        <button onclick="document.getElementById('kw-editor-overlay').remove()" style="background:none;border:none;font-size:22px;color:var(--text2);cursor:pointer">✕</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding-bottom:16px">
+        <div class="sec" style="margin-top:0">Wochenwerte</div>
+        <div class="card" style="padding:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="form-group"><label>Longrun (km)</label><input type="number" id="ed-lr" value="${eff.lr}" min="1" max="40" style="font-size:14px"></div>
+            <div class="form-group"><label>Threshold (km)</label><input type="number" id="ed-thr" value="${eff.thr}" min="1" max="20" style="font-size:14px"></div>
+            <div class="form-group"><label>Z2 Lauf (km)</label><input type="number" id="ed-z2" value="${eff.z2}" min="1" max="20" style="font-size:14px"></div>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:8px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+              <input type="checkbox" id="ed-intv" ${eff.intv?'checked':''}> Di: Intervall statt Threshold
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+              <input type="checkbox" id="ed-r" ${eff.r?'checked':''}> Sa: Rennrad statt Longrun
+            </label>
+          </div>
+          <div id="ed-rad-section" style="display:${eff.r?'grid':'none'};grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <div class="form-group"><label>Rad min (km)</label><input type="number" id="ed-radLo" value="${eff.radLo||0}" style="font-size:14px"></div>
+            <div class="form-group"><label>Rad max (km)</label><input type="number" id="ed-radHi" value="${eff.radHi||0}" style="font-size:14px"></div>
+          </div>
+          <div class="form-group" style="margin-top:8px"><label>Hinweis</label>
+            <input type="text" id="ed-hint" value="${(eff.hint||'').replace(/"/g,'&quot;')}" placeholder="z.B. ⬇ REDUKTIONSWOCHE" style="font-size:13px">
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px">
+            <input type="checkbox" id="ed-cascade"> Longrun-Änderung auf alle folgenden Wochen übertragen
+          </label>
+        </div>
+        <div class="sec">Wochentage</div>
+        ${daysHtml}
+        <button class="primary" onclick="saveKWEditor('${key}',${kw},${year},${base.lr})" style="width:100%;margin-top:8px;font-size:14px;padding:14px">Speichern</button>
+        ${Object.keys(ov).length ? `<button onclick="resetKWEditor('${key}')" style="width:100%;margin-top:8px;font-size:13px;color:var(--text3);background:none;border:none;cursor:pointer">↺ Woche zurücksetzen</button>` : ''}
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  document.getElementById('ed-r') && null;
+  document.body.appendChild(overlay);
+  document.getElementById('ed-r').addEventListener('change', function() {
+    document.getElementById('ed-rad-section').style.display = this.checked ? 'grid' : 'none';
+  });
+}
+
+function saveKWEditor(key, kw, yr, baseLR) {
+  const overrides = DATA.settings.planOverrides || {};
+  const newLR    = parseInt(document.getElementById('ed-lr').value) || baseLR;
+  const cascade  = document.getElementById('ed-cascade').checked;
+  const days     = {};
+  for (const d of [0,1,2,3,4,5,6]) {
+    const label = document.getElementById(`day-label-${d}`)?.value || '';
+    const text  = document.getElementById(`day-text-${d}`)?.value || '';
+    const btn   = document.getElementById(`day-btn-${d}`)?.value || 'null';
+    days[d] = { label, text, btn: btn === 'null' ? null : btn };
+  }
+  overrides[key] = {
+    lr:    newLR,
+    thr:   parseInt(document.getElementById('ed-thr').value) || undefined,
+    z2:    parseInt(document.getElementById('ed-z2').value) || undefined,
+    intv:  document.getElementById('ed-intv').checked,
+    r:     document.getElementById('ed-r').checked,
+    radLo: parseInt(document.getElementById('ed-radLo').value) || 0,
+    radHi: parseInt(document.getElementById('ed-radHi').value) || 0,
+    hint:  document.getElementById('ed-hint').value.trim() || null,
+    days,
+  };
+  DATA.settings.planOverrides = overrides;
+  if (cascade) cascadeLR(kw, yr, newLR - baseLR);
+  save();
+  document.getElementById('kw-editor-overlay')?.remove();
+  renderHeute();
+  renderPlan();
+  if (document.getElementById('tab-settings')?.classList.contains('active') ||
+      document.querySelector('#btn-settings.active')) renderSettings();
+  showToast('KW gespeichert ✓');
+}
+
+function resetKWEditor(key) {
+  if (!confirm('Anpassungen für diese KW löschen?')) return;
+  const overrides = DATA.settings.planOverrides || {};
+  delete overrides[key];
+  DATA.settings.planOverrides = overrides;
+  save();
+  document.getElementById('kw-editor-overlay')?.remove();
+  renderHeute();
+  renderPlan();
+  showToast('KW zurückgesetzt');
+}
+
+// ── KRAFT EXERCISE EDITOR ──────────────────────────────────
+function openKraftListEditor(type) {
+  const current = JSON.parse(JSON.stringify(type === 'kraft_a' ? getExA() : getExB()));
+  const label = type === 'kraft_a' ? 'Kraft A – Push' : 'Kraft B – Pull';
+  const UNITS = ['kg/Wdh','Sek/Runde','kg/m','Sek'];
+
+  function renderRows(list) {
+    return list.map((ex, i) => {
+      const unitOpts = UNITS.map(u => `<option value="${u}" ${ex.unit===u?'selected':''}>${u}</option>`).join('');
+      return `<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <button onclick="moveEx(${i},-1,'${type}')" style="font-size:10px;padding:2px 6px;line-height:1" ${i===0?'disabled':''}>▲</button>
+          <button onclick="moveEx(${i},1,'${type}')" style="font-size:10px;padding:2px 6px;line-height:1" ${i===list.length-1?'disabled':''}>▼</button>
+        </div>
+        <input type="text" id="ex-name-${i}" value="${ex.name}" style="flex:1;font-size:13px">
+        <select id="ex-unit-${i}" style="font-size:12px;width:90px">${unitOpts}</select>
+        <button onclick="deleteEx(${i},'${type}')" style="color:var(--red);background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px">✕</button>
+      </div>`;
+    }).join('');
+  }
+
+  window._kraftEditorList = { type, list: current };
+
+  const el = document.getElementById('kraft-editor-overlay');
+  if (el) el.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'kraft-editor-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9200;display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--card);width:100%;max-width:600px;border-radius:16px 16px 0 0;padding:16px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0">
+        <span style="font-weight:700;font-size:16px">${label} – Übungen</span>
+        <button onclick="document.getElementById('kraft-editor-overlay').remove()" style="background:none;border:none;font-size:22px;color:var(--text2);cursor:pointer">✕</button>
+      </div>
+      <div id="kraft-ex-rows" style="overflow-y:auto;flex:1">${renderRows(current)}</div>
+      <div style="flex-shrink:0;padding-top:10px">
+        <button onclick="addKraftEx('${type}')" style="width:100%;margin-bottom:8px;font-size:13px">+ Übung hinzufügen</button>
+        <div style="display:flex;gap:8px">
+          <button class="primary" onclick="saveKraftList('${type}')" style="flex:1;font-size:14px;padding:12px">Speichern</button>
+          <button onclick="resetKraftList('${type}')" style="font-size:12px;color:var(--text3);background:none;border:1px solid var(--border);border-radius:8px;padding:8px 12px;cursor:pointer">Zurücksetzen</button>
+        </div>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+function _refreshKraftRows() {
+  const {type, list} = window._kraftEditorList;
+  const UNITS = ['kg/Wdh','Sek/Runde','kg/m','Sek'];
+  const rows = list.map((ex, i) => {
+    const unitOpts = UNITS.map(u => `<option value="${u}" ${ex.unit===u?'selected':''}>${u}</option>`).join('');
+    return `<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <button onclick="moveEx(${i},-1,'${type}')" style="font-size:10px;padding:2px 6px;line-height:1" ${i===0?'disabled':''}>▲</button>
+        <button onclick="moveEx(${i},1,'${type}')" style="font-size:10px;padding:2px 6px;line-height:1" ${i===list.length-1?'disabled':''}>▼</button>
+      </div>
+      <input type="text" id="ex-name-${i}" value="${ex.name}" style="flex:1;font-size:13px">
+      <select id="ex-unit-${i}" style="font-size:12px;width:90px">${unitOpts}</select>
+      <button onclick="deleteEx(${i},'${type}')" style="color:var(--red);background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px">✕</button>
+    </div>`;
+  }).join('');
+  document.getElementById('kraft-ex-rows').innerHTML = rows;
+}
+
+function _syncKraftInputs() {
+  const {list} = window._kraftEditorList;
+  list.forEach((ex, i) => {
+    ex.name = document.getElementById(`ex-name-${i}`)?.value || ex.name;
+    ex.unit = document.getElementById(`ex-unit-${i}`)?.value || ex.unit;
+  });
+}
+
+function moveEx(idx, dir, type) {
+  _syncKraftInputs();
+  const {list} = window._kraftEditorList;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= list.length) return;
+  [list[idx], list[newIdx]] = [list[newIdx], list[idx]];
+  _refreshKraftRows();
+}
+
+function deleteEx(idx, type) {
+  _syncKraftInputs();
+  window._kraftEditorList.list.splice(idx, 1);
+  _refreshKraftRows();
+}
+
+function addKraftEx(type) {
+  _syncKraftInputs();
+  window._kraftEditorList.list.push({ id: uid(), name: 'Neue Übung', unit: 'kg/Wdh' });
+  _refreshKraftRows();
+}
+
+function saveKraftList(type) {
+  _syncKraftInputs();
+  const list = window._kraftEditorList.list.filter(ex => ex.name.trim());
+  if (type === 'kraft_a') DATA.settings.customExA = list;
+  else                     DATA.settings.customExB = list;
+  save();
+  document.getElementById('kraft-editor-overlay')?.remove();
+  showToast('Übungsliste gespeichert ✓');
+}
+
+function resetKraftList(type) {
+  if (!confirm('Übungsliste auf Standard zurücksetzen?')) return;
+  if (type === 'kraft_a') DATA.settings.customExA = null;
+  else                     DATA.settings.customExB = null;
+  save();
+  document.getElementById('kraft-editor-overlay')?.remove();
+  showToast('Zurückgesetzt');
+}
 function fmtDate(s) {
   if (!s) return '';
   const [y,m,d] = s.split('-');
@@ -627,7 +904,7 @@ function renderHeute() {
   if (!homeKW) homeKW = cur;
   const {week, year} = homeKW;
   const isCurrentKW = (week === cur.week && year === cur.year);
-  const plan = getPlan(week, year);
+  const plan = getEffectivePlan(week, year);
   const entries = getEntries(week, year);
 
   const kwEl = document.getElementById('header-kw');
@@ -653,7 +930,8 @@ function renderHeute() {
   // Heutiger Trainingstipp
   let todayCard = '';
   if (plan) {
-    const dayPlan = {
+    const dayOv = plan.days || {};
+    const dayPlanBase = {
       1: { label: 'Mo – Kraft PUSH 💪', text: 'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT', btn: 'kraft_a' },
       2: { label: plan.intv ? 'Di – Intervall 🏃⚡' : 'Di – Threshold 🔥', text: plan.intv ? `5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~10km` : `${plan.thr} km @ ~4:40–5:00/km | HR 158–168`, btn: plan.intv ? 'interval' : 'threshold' },
       3: { label: 'Mi – Z2 Lauf 🏃', text: `${plan.z2} km | HR 136–142 bpm | ~5:30–6:20/km`, btn: 'z2' },
@@ -662,6 +940,10 @@ function renderHeute() {
       6: { label: plan.r ? 'Sa – Rennrad 🚴' : 'Sa – Longrun 🏃', text: plan.r ? `${plan.radLo}–${plan.radHi} km | HR ≤ 148 bpm` : `${plan.lr} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`, btn: plan.r ? 'rennrad' : 'longrun' },
       0: { label: 'So – Pause 😴', text: 'Aktive Erholung: Spazieren, Schwimmen, E-Bike', btn: null },
     };
+    const dayPlan = {};
+    for (const d of [0,1,2,3,4,5,6]) {
+      dayPlan[d] = dayOv[d] ? { ...dayPlanBase[d], ...dayOv[d] } : dayPlanBase[d];
+    }
     const dp = dayPlan[todayDay];
     if (dp) {
       todayCard = `<div class="card" style="border-color:#333;margin-bottom:14px">
@@ -860,7 +1142,7 @@ function renderEintragen() {
   }
 
   const {kw, yr, actType} = eintragenState;
-  const plan = getPlan(kw, yr);
+  const plan = getEffectivePlan(kw, yr);
   const entries = getEntries(kw, yr);
 
   // Week selector
@@ -2547,6 +2829,26 @@ function renderSettings() {
     <div class="card" id="hr-zones-card">
       ${renderHRZones()}
       <div style="margin-top:10px;font-size:12px;color:var(--text3)">HRmax ${s.hrZones.max} bpm · <a href="#" onclick="openHRSettings();return false" style="color:var(--text2)">Anpassen</a></div>
+    </div>
+
+    <div class="sec">Trainingsplan</div>
+    <div class="card" style="padding:14px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Einzelne Wochen anpassen, Übungslisten bearbeiten. Änderungen werden lokal gespeichert.</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button onclick="openKraftListEditor('kraft_a')" style="flex:1;font-size:13px">💪 Kraft A bearbeiten</button>
+        <button onclick="openKraftListEditor('kraft_b')" style="flex:1;font-size:13px">🏋️ Kraft B bearbeiten</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Kalenderwoche auswählen:</div>
+      <div style="display:flex;gap:8px">
+        <select id="plan-edit-kw" style="flex:1">
+          ${PLAN.map(p => {
+            const k = planKey(p.kw, p.yr);
+            const hasOv = Object.keys((DATA.settings.planOverrides||{})[k]||{}).length > 0;
+            return `<option value="${k}">KW ${p.kw}/${p.yr}${hasOv?' ✎':''}</option>`;
+          }).join('')}
+        </select>
+        <button onclick="openKWEditor(document.getElementById('plan-edit-kw').value)" style="font-size:13px;padding:8px 14px">Bearbeiten</button>
+      </div>
     </div>
 
     <div class="sec">App</div>
