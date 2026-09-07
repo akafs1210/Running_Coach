@@ -232,11 +232,18 @@ function writeKraftBlock(sh, entry) {
   exercises.forEach((ex, idx) => {
     const sets = ex.sets || [];
     const s = [0, 1, 2].map(i => sets[i] || {});
-    const v = (set, field, alt) => set[field] !== undefined && set[field] !== null && set[field] !== '' ? set[field] : (set[alt] || '');
+    // kg-Spalte: sek-Feld hat Vorrang (Plank, HIIT), dann v1/kg
+    const vKg  = (set) => (set.sek !== undefined && set.sek !== null && set.sek !== '') ? set.sek + 's'
+                         : (set.v1 !== undefined && set.v1 !== null && set.v1 !== '') ? set.v1
+                         : (set.kg  || '');
+    // Wdh-Spalte: v2/reps (bei sek-Sets leer lassen)
+    const vRep = (set) => (set.sek !== undefined && set.sek !== null && set.sek !== '') ? ''
+                         : (set.v2 !== undefined && set.v2 !== null && set.v2 !== '') ? set.v2
+                         : (set.reps || '');
     const label = String.fromCharCode(65 + idx) + ': ' + (ex.name || '');
     const bg = idx % 2 === 0 ? COL_WHITE : COL_ALT;
     sh.getRange(row, 1, 1, COLS)
-      .setValues([[label, v(s[0],'v1','kg'), v(s[0],'v2','reps'), v(s[1],'v1','kg'), v(s[1],'v2','reps'), v(s[2],'v1','kg'), v(s[2],'v2','reps'), '']])
+      .setValues([[label, vKg(s[0]), vRep(s[0]), vKg(s[1]), vRep(s[1]), vKg(s[2]), vRep(s[2]), '']])
       .setBackground(bg).setFontColor('#000000').setFontWeight('normal');
     sh.getRange(row, 2, 1, 6).setHorizontalAlignment('center');
     sh.setRowHeight(row, 21);
