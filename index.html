@@ -2760,9 +2760,66 @@ function loadStravaActivities() {
   });
 }
 
+function classifyRunType(act) {
+  const name = (act.name || '').toLowerCase();
+  const hr   = act.average_heartrate ? Math.round(act.average_heartrate) : 0;
+  const km   = act.distance > 0 ? act.distance / 1000 : 0;
+  const z    = DATA.settings.hrZones || {z2:142, z3:158, z4:168};
+  // Name-Keywords
+  if (/interval|wiederh|repeat|vo2|5x|4x|3x|8x|10x/.test(name)) return 'interval';
+  if (/tempo|schwelle|threshold|lactate/.test(name))               return 'threshold';
+  if (/longrun|long run|langer lauf|laufen lang/.test(name))       return 'longrun';
+  // HR-basiert
+  if (hr >= z.z4)  return 'interval';
+  if (hr >= z.z3)  return 'threshold';
+  // Distanz: Longrun wenn >= 13km und eher ruhig
+  if (km >= 13 && hr < z.z3) return 'longrun';
+  return 'z2';
+}
+
 function importStrava(act) {
   const meta = STRAVA_TYPE_MAP[act.type] || {type: null};
   if (!meta.type) return;
+
+  // Für Läufe: Typ automatisch erkennen und bestätigen lassen
+  if (['Run','VirtualRun'].includes(act.type)) {
+    const detected = classifyRunType(act);
+    const RUN_OPTS = [
+      {v:'z2',        l:'🌿 Z2 – Aerob'},
+      {v:'threshold', l:'🔥 Threshold'},
+      {v:'interval',  l:'⚡ Intervall'},
+      {v:'longrun',   l:'🏃 Longrun'},
+    ];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+    const km = act.distance > 0 ? (act.distance/1000).toFixed(1) : '?';
+    const hr = act.average_heartrate ? `ø${Math.round(act.average_heartrate)} bpm` : '–';
+    overlay.innerHTML = `
+      <div style="background:var(--bg1);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px">
+        <div style="font-weight:700;font-size:16px;margin-bottom:4px">${act.name}</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:16px">${km}km · ${hr}</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:8px">Trainingstyp:</div>
+        <select id="strava-import-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:15px;margin-bottom:16px">
+          ${RUN_OPTS.map(o => `<option value="${o.v}" ${o.v===detected?'selected':''}>${o.l}</option>`).join('')}
+        </select>
+        <div style="display:flex;gap:8px">
+          <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;background:var(--bg3)">Abbrechen</button>
+          <button onclick="confirmImportStrava(${JSON.stringify(act).replace(/"/g,'&quot;')}, document.getElementById('strava-import-type').value, this)" style="flex:1">Importieren →</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    return;
+  }
+
+  _doImportStrava(act, meta.type);
+}
+
+function confirmImportStrava(act, type, btn) {
+  btn.closest('div[style*="fixed"]').remove();
+  _doImportStrava(act, type);
+}
+
+function _doImportStrava(act, type) {
   const actDate = act.start_date_local?.slice(0,10) || new Date().toISOString().slice(0,10);
   const {week, year} = getISOWeek(new Date(actDate));
   const km = act.distance > 0 ? (act.distance/1000).toFixed(2) : '';
@@ -2770,7 +2827,7 @@ function importStrava(act) {
   const entry = {
     id: uid(),
     stravaId: act.id,
-    type: meta.type,
+    type: type,
     date: actDate,
     kw: week, yr: year,
     km: km,
