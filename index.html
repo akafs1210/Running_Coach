@@ -2010,8 +2010,11 @@ function entryHTML(e) {
   const detail = entryDetail(e);
   const hasDetail = !!detail;
   const isKraft = ['kraft_a','kraft_b','kraft_manuell'].includes(e.type);
+  const isLauf  = ['z2','threshold','interval','longrun'].includes(e.type);
   const editBtn = isKraft
     ? `<button onclick="event.stopPropagation();openKraftEdit('${e.id}')" style="background:none;border:none;color:var(--text3);font-size:20px;padding:0;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" title="Bearbeiten">✏</button>`
+    : isLauf
+    ? `<button onclick="event.stopPropagation();changeRunType('${e.id}')" style="background:none;border:none;color:var(--text3);font-size:16px;padding:0;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0" title="Typ ändern">✏</button>`
     : '';
   const detailContent = hasDetail
     ? `<div class="entry-detail" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
@@ -2051,6 +2054,42 @@ function deleteEntry(id) {
   saveDeletedId(id);
   DATA.entries = DATA.entries.filter(e => e.id !== id);
   save();
+  renderEintragen();
+  renderHeute();
+}
+
+function changeRunType(id) {
+  const e = DATA.entries.find(x => x.id === id);
+  if (!e) return;
+  const RUN_OPTS = [
+    {v:'z2',        l:'🌿 Z2 – Aerob'},
+    {v:'threshold', l:'🔥 Threshold'},
+    {v:'interval',  l:'⚡ Intervall'},
+    {v:'longrun',   l:'🏃 Longrun'},
+  ];
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--bg1);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px">
+      <div style="font-weight:700;font-size:16px;margin-bottom:16px">Trainingstyp ändern</div>
+      <select id="run-type-sel" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:15px;margin-bottom:16px">
+        ${RUN_OPTS.map(o => `<option value="${o.v}" ${o.v===e.type?'selected':''}>${o.l}</option>`).join('')}
+      </select>
+      <div style="display:flex;gap:8px">
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;background:var(--bg3)">Abbrechen</button>
+        <button onclick="applyRunType('${id}', document.getElementById('run-type-sel').value, this)" style="flex:1">Speichern</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function applyRunType(id, type, btn) {
+  btn.closest('div[style*="fixed"]').remove();
+  const e = DATA.entries.find(x => x.id === id);
+  if (!e) return;
+  e.type = type;
+  e.synced = false;
+  save(); trySync();
   renderEintragen();
   renderHeute();
 }
