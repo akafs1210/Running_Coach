@@ -508,7 +508,12 @@ function saveKWEditor(key, kw, yr, baseLR) {
   renderHeute();
   renderPlan();
   if (document.getElementById('tab-settings')?.classList.contains('active') ||
-      document.querySelector('#btn-settings.active')) renderSettings();
+      document.querySelector('#btn-settings.active')) {
+    renderSettings();
+    // Dropdown nach Re-render auf die gerade gespeicherte KW zurücksetzen
+    const sel = document.getElementById('plan-edit-kw');
+    if (sel) sel.value = key;
+  }
   showToast('KW gespeichert ✓');
 }
 
@@ -521,6 +526,12 @@ function resetKWEditor(key) {
   document.getElementById('kw-editor-overlay')?.remove();
   renderHeute();
   renderPlan();
+  if (document.getElementById('tab-settings')?.classList.contains('active') ||
+      document.querySelector('#btn-settings.active')) {
+    renderSettings();
+    const sel = document.getElementById('plan-edit-kw');
+    if (sel) sel.value = key;
+  }
   showToast('KW zurückgesetzt');
 }
 
