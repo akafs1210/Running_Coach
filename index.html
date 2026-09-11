@@ -3082,7 +3082,11 @@ async function gistSync(callback) {
       // Plan-Settings mergen (neuere Seite gewinnt, Remote überschreibt lokal)
       if (remote.planSettings) {
         const ps = remote.planSettings;
-        if (ps.planOverrides) DATA.settings.planOverrides = ps.planOverrides;
+        if (ps.planOverrides) {
+          // Key-level merge: local wins on conflict (just saved), remote adds missing weeks
+          const local = DATA.settings.planOverrides || {};
+          DATA.settings.planOverrides = { ...ps.planOverrides, ...local };
+        }
         if (ps.customExA)     DATA.settings.customExA     = ps.customExA;
         if (ps.customExB)     DATA.settings.customExB     = ps.customExB;
         if (ps.hrZones)       DATA.settings.hrZones        = ps.hrZones;
