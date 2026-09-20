@@ -356,8 +356,8 @@ function openKWEditor(key) {
 
   const dayPlanBase = {
     1:{btn:'kraft_a'},
-    2:{btn:eff.intv?'interval':'threshold'},
-    3:{btn:'z2'},
+    2:{btn:'z2'},
+    3:{btn:eff.intv?'interval':'threshold'},
     4:{btn:'kraft_b'},
     5:{btn:'__recovery__'},
     6:{btn:eff.r?'rennrad':'longrun'},
@@ -471,11 +471,11 @@ function saveKWEditor(key, kw, yr, baseLR) {
     const mapped = WL[sel] || {label: sel, text:'', btn: sel};
     days[d] = mapped;
   }
-  // intv: Dienstag-Dropdown hat Vorrang vor Checkbox
-  const diSel = document.getElementById('day-btn-2')?.value || '__std__';
+  // intv: Mittwoch-Dropdown hat Vorrang vor Checkbox (Mi = Intervall/Threshold)
+  const miSel = document.getElementById('day-btn-3')?.value || '__std__';
   let newIntv = document.getElementById('ed-intv').checked;
-  if (diSel === 'interval')  newIntv = true;
-  if (diSel === 'threshold') newIntv = false;
+  if (miSel === 'interval')  newIntv = true;
+  if (miSel === 'threshold') newIntv = false;
 
   // lauf-Total automatisch aus Einzeldistanzen berechnen
   const newLauf = newR ? (getPlan(kw, yr)?.lauf || 0) : (newLR + newThr + newZ2);
@@ -691,6 +691,12 @@ function getLastWeights(type) {
 // ── TAB SWITCHING ──────────────────────────────────────────
 let activeTab = 'heute';
 function switchTab(name, btn) {
+  // Preserve in-progress Kraft workout state before leaving Eintragen
+  if (activeTab === 'eintragen') {
+    const at = eintragenState.actType;
+    if (at === 'kraft_a' || at === 'kraft_b') collectKfValues();
+    else if (at === 'kraft_manuell') _readManuelleFromDOM();
+  }
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
@@ -1014,8 +1020,8 @@ function renderHeute() {
     const dayOv = plan.days || {};
     const dayPlanBase = {
       1: { label: 'Mo – Kraft PUSH 💪', text: 'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT', btn: 'kraft_a' },
-      2: { label: plan.intv ? 'Di – Intervall 🏃⚡' : 'Di – Threshold 🔥', text: plan.intv ? `5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~7km` : `${plan.thr} km @ ~4:40–5:00/km | HR 158–168`, btn: plan.intv ? 'interval' : 'threshold' },
-      3: { label: 'Mi – Z2 Lauf 🏃', text: `${plan.z2} km | HR 136–142 bpm | ~5:30–6:20/km`, btn: 'z2' },
+      2: { label: 'Di – Z2 Lauf 🌿', text: `${plan.z2} km | HR 136–142 bpm | ~5:30–6:20/km`, btn: 'z2' },
+      3: { label: plan.intv ? 'Mi – Intervall ⚡' : 'Mi – Threshold 🔥', text: plan.intv ? `5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~7km` : `${plan.thr} km @ ~4:40–5:00/km | HR 158–168`, btn: plan.intv ? 'interval' : 'threshold' },
       4: { label: 'Do – Kraft PULL 💪', text: 'Einb. RDL · Farmers Carry · Sled/Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT', btn: 'kraft_b' },
       5: { label: 'Fr – Recovery / Plyo 🦘', text: 'Plyometrics 30 Min oder Pause & Mobility', btn: null },
       6: { label: plan.r ? 'Sa – Rennrad 🚴' : 'Sa – Longrun 🏃', text: plan.r ? `${plan.radLo}–${plan.radHi} km | HR ≤ 148 bpm` : `${plan.lr} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`, btn: plan.r ? 'rennrad' : 'longrun' },
@@ -1172,8 +1178,8 @@ function renderPlan() {
     const dayOv = ep.days || {};
     const dayDefault = {
       1:{label:`Mo – Kraft PUSH (${sets} Sätze)`, content:`<ul style="padding-left:16px;font-size:13px;color:var(--text2)">${exListA}</ul>`},
-      2:{label:`Di – ${ep.intv?'Intervall':'Threshold'}`, content:`<div style="font-size:13px;color:var(--text2)">${diLabel}</div>`},
-      3:{label:'Mi – Z2 Lauf', content:`<div style="font-size:13px;color:var(--text2)">🏃 ${ep.z2} km | HR 136–142 bpm</div>`},
+      2:{label:'Di – Z2 Lauf', content:`<div style="font-size:13px;color:var(--text2)">🌿 ${ep.z2} km | HR 136–142 bpm</div>`},
+      3:{label:`Mi – ${ep.intv?'Intervall':'Threshold'}`, content:`<div style="font-size:13px;color:var(--text2)">${diLabel}</div>`},
       4:{label:`Do – Kraft PULL (${sets} Sätze)`, content:`<ul style="padding-left:16px;font-size:13px;color:var(--text2)">${exListB}</ul>`},
       5:{label:'Fr – Recovery', content:`<div style="font-size:13px;color:var(--text2)">🦘 Plyometrics oder Pause/Mobility</div>`},
       6:{label:'Sa', content:`<div style="font-size:13px;color:var(--text2)">${satLabel}</div>`},
@@ -2171,11 +2177,10 @@ function exportKWText() {
 
     // Zusammenfassung
     const sumParts = [];
-    if (runKm > 0) sumParts.push(`Lauf: ${runKm.toFixed(1)} km${plan.lauf ? ' / Ziel: '+plan.lauf+' km' : ''}`);
-    if (rideKm > 0) sumParts.push(`Rad: ${rideKm.toFixed(1)} km${plan.rad ? ' / Ziel: '+plan.rad+' km' : ''}`);
+    if (runKm > 0) sumParts.push(`Lauf: ${runKm.toFixed(1)} km`);
+    if (rideKm > 0) sumParts.push(`Rad: ${rideKm.toFixed(1)} km`);
     if (kraft.length > 0) sumParts.push(`Kraft: ${kraft.length}x`);
     if (other.length > 0) sumParts.push(other.map(e => TYPE_LABEL[e.type]||e.type).join(', '));
-    if (wAvg !== '–') sumParts.push(`Gewicht Ø: ${wAvg} kg`);
     lines.push('  ' + (sumParts.join('  |  ') || 'Keine Einträge'));
     lines.push('');
 
@@ -2229,13 +2234,6 @@ function exportKWText() {
       lines.push(`  ${date}  ${label.padEnd(14)}  ${detail}`);
       if (e.notes) lines.push(`      Notiz: ${e.notes}`);
     });
-
-    // Gewichtsmessungen der Woche
-    if (wArr.length > 0) {
-      const wEntries = DATA.entries.filter(e => e.type==='gewicht' && e.kg &&
-        `${e.yr}-${String(e.kw).padStart(2,'0')}` === key).sort((a,b) => a.date.localeCompare(b.date));
-      wEntries.forEach(e => lines.push(`  ${fmtDate(e.date)}  Gewicht         ${parseFloat(e.kg).toFixed(1)} kg`));
-    }
 
     lines.push('');
   });
@@ -2787,6 +2785,8 @@ function loadStravaActivities() {
       const mins = Math.round(a.moving_time / 60);
       const dur = mins >= 60 ? `${Math.floor(mins/60)}h${mins%60}min` : `${mins}min`;
       const hr = a.average_heartrate ? ` · ø${Math.round(a.average_heartrate)} bpm` : '';
+      const paceRaw = (a.distance > 0 && a.moving_time > 0) ? a.moving_time / (a.distance / 1000) : 0;
+      const paceStr = paceRaw > 0 ? ` · ${Math.floor(paceRaw/60)}:${String(Math.round(paceRaw%60)).padStart(2,'0')}/km` : '';
       const date = a.start_date_local?.slice(0,10) || '';
       const alreadyImported = DATA.entries.some(e => e.stravaId === a.id);
       return `<div class="card" style="margin-bottom:8px;${alreadyImported?'opacity:.5':''}">
@@ -2795,7 +2795,7 @@ function loadStravaActivities() {
           <span style="font-size:12px;color:var(--text3)">${date}</span>
         </div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:${meta.type&&!alreadyImported?'10':'0'}px">
-          ${meta.label}${dist?' · '+dist:''} · ${dur}${hr}
+          ${meta.label}${dist?' · '+dist:''} · ${dur}${hr}${paceStr}
         </div>
         ${meta.type && !alreadyImported ? `<button onclick="importStrava(${JSON.stringify(a).replace(/"/g,'&quot;')})" style="width:100%;font-size:13px">Importieren →</button>` : ''}
         ${alreadyImported ? '<div style="font-size:12px;color:var(--green)">✓ bereits importiert</div>' : ''}
@@ -2844,10 +2844,12 @@ function importStrava(act) {
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
     const km = act.distance > 0 ? (act.distance/1000).toFixed(1) : '?';
     const hr = act.average_heartrate ? `ø${Math.round(act.average_heartrate)} bpm` : '–';
+    const pr2 = (act.distance > 0 && act.moving_time > 0) ? act.moving_time / (act.distance/1000) : 0;
+    const pd = pr2 > 0 ? ` · ${Math.floor(pr2/60)}:${String(Math.round(pr2%60)).padStart(2,'0')}/km` : '';
     overlay.innerHTML = `
       <div style="background:var(--bg1);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px">
         <div style="font-weight:700;font-size:16px;margin-bottom:4px">${act.name}</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:16px">${km}km · ${hr}</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:16px">${km}km · ${hr}${pd}</div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:8px">Trainingstyp:</div>
         <select id="strava-import-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:15px;margin-bottom:16px">
           ${RUN_OPTS.map(o => `<option value="${o.v}" ${o.v===detected?'selected':''}>${o.l}</option>`).join('')}
@@ -2874,6 +2876,8 @@ function _doImportStrava(act, type) {
   const {week, year} = getISOWeek(new Date(actDate));
   const km = act.distance > 0 ? (act.distance/1000).toFixed(2) : '';
   const mins = Math.round(act.moving_time / 60);
+  const paceRaw = (act.distance > 0 && act.moving_time > 0) ? act.moving_time / (act.distance/1000) : 0;
+  const pace = paceRaw > 0 ? `${Math.floor(paceRaw/60)}:${String(Math.round(paceRaw%60)).padStart(2,'0')}` : '';
   const entry = {
     id: uid(),
     stravaId: act.id,
@@ -2882,6 +2886,7 @@ function _doImportStrava(act, type) {
     kw: week, yr: year,
     km: km,
     timeMin: mins,
+    pace: pace,
     hrAvg: act.average_heartrate ? Math.round(act.average_heartrate) : '',
     hrMax: act.max_heartrate ? Math.round(act.max_heartrate) : '',
     elevation: act.total_elevation_gain ? Math.round(act.total_elevation_gain) : '',
