@@ -249,7 +249,8 @@ const EX_A = [
 const EX_B = [
   {id:'a',name:'Einb. RDL (Zughilfe)',unit:'kg/Wdh'},
   {id:'b',name:'Farmers Carry 2×24 kg',unit:'kg/m'},
-  {id:'c',name:'Sled Pull / Leg Press',unit:'kg/Wdh'},
+  {id:'c',name:'Sled Pull',unit:'kg/Wdh'},
+  {id:'c2',name:'Leg Press',unit:'kg/Wdh'},
   {id:'d',name:'Sandbag Lunges',unit:'kg/m'},
   {id:'e',name:'Latzug / Klimmzüge',unit:'kg/Wdh'},
   {id:'f',name:'Kabelrudern',unit:'kg/Wdh'},
@@ -338,7 +339,7 @@ function openKWEditor(key) {
   const WORKOUT_TYPES = [
     {v:'__std__',      label:'Standard (automatisch)',  emoji:'',   text:''},
     {v:'kraft_a',      label:'Kraft A – Push 💪',       emoji:'💪', text:'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT'},
-    {v:'kraft_b',      label:'Kraft B – Pull 🏋️',      emoji:'🏋️',text:'Einb. RDL · Farmers Carry · Sled/Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT'},
+    {v:'kraft_b',      label:'Kraft B – Pull 🏋️',      emoji:'🏋️',text:'Einb. RDL · Farmers Carry · Sled Pull · Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT'},
     {v:'kraft_manuell',label:'Kraft Manuell ✏️',        emoji:'✏️', text:'Freies Krafttraining'},
     {v:'longrun',      label:'Longrun 🏃',              emoji:'🏃', text:`${eff.lr} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`},
     {v:'threshold',    label:'Threshold 🔥',            emoji:'🔥', text:`${eff.thr} km @ ~4:40–5:00/km | HR 158–168`},
@@ -449,7 +450,7 @@ function saveKWEditor(key, kw, yr, baseLR) {
   const eff2 = getEffectivePlan(kw, yr) || {};
   const WL = {
     kraft_a:       {label:'Mo – Kraft PUSH 💪',      text:'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT', btn:'kraft_a'},
-    kraft_b:       {label:'Do – Kraft PULL 💪',      text:'Einb. RDL · Farmers Carry · Sled/Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT', btn:'kraft_b'},
+    kraft_b:       {label:'Do – Kraft PULL 💪',      text:'Einb. RDL · Farmers Carry · Sled Pull · Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT', btn:'kraft_b'},
     kraft_manuell: {label:'Kraft Manuell ✏️',        text:'Freies Krafttraining', btn:'kraft_manuell'},
     longrun:       {label:'Longrun 🏃',              text:`${newLR} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`, btn:'longrun'},
     threshold:     {label:'Threshold 🔥',            text:`${newThr||eff2.thr||0} km @ ~4:40–5:00/km | HR 158–168`, btn:'threshold'},
@@ -1046,7 +1047,7 @@ function renderHeute() {
       1: { label: 'Mo – Kraft PUSH 💪', text: 'Bulgarian Split Squat · Sled Push · Wallballs · Schrägbankdrücken · Dips · Plank · Ski Erg HIIT', btn: 'kraft_a' },
       2: { label: 'Di – Z2 Lauf 🌿', text: `${plan.z2} km | HR 136–142 bpm | ~5:30–6:20/km`, btn: 'z2' },
       3: { label: plan.intv ? 'Mi – Intervall ⚡' : 'Mi – Threshold 🔥', text: plan.intv ? `5×1km @ ~4:05–4:20/km | HR ≤ 172 | Gesamt ~7km` : `${plan.thr} km @ ~4:40–5:00/km | HR 158–168`, btn: plan.intv ? 'interval' : 'threshold' },
-      4: { label: 'Do – Kraft PULL 💪', text: 'Einb. RDL · Farmers Carry · Sled/Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT', btn: 'kraft_b' },
+      4: { label: 'Do – Kraft PULL 💪', text: 'Einb. RDL · Farmers Carry · Sled Pull · Leg Press · Sandbag Lunges · Klimmzüge · Kabelrudern · Row HIIT', btn: 'kraft_b' },
       5: { label: 'Fr – Recovery / Plyo 🦘', text: 'Plyometrics 30 Min oder Pause & Mobility', btn: null },
       6: { label: plan.r ? 'Sa – Rennrad 🚴' : 'Sa – Longrun 🏃', text: plan.r ? `${plan.radLo}–${plan.radHi} km | HR ≤ 148 bpm` : `${plan.lr} km | Z2: HR 136–142 bpm | Fueling ab 75 Min`, btn: plan.r ? 'rennrad' : 'longrun' },
       0: { label: 'So – Pause 😴', text: 'Aktive Erholung: Spazieren, Schwimmen, E-Bike', btn: null },
@@ -1418,7 +1419,8 @@ const EXERCISE_DB = [
   {cat:'Core',name:'Ab Wheel Rollout',unit:'Wdh'},
   // Ganzkörper / Functional
   {cat:'Functional',name:'Sled Push (ohne Schlitten)',unit:'kg/m'},
-  {cat:'Functional',name:'Sled Pull / Leg Press',unit:'kg/Wdh'},
+  {cat:'Functional',name:'Sled Pull',unit:'kg/Wdh'},
+  {cat:'Functional',name:'Leg Press',unit:'kg/Wdh'},
   {cat:'Functional',name:'Farmers Carry',unit:'kg/m'},
   {cat:'Functional',name:'Wallballs',unit:'kg/Wdh'},
   {cat:'Functional',name:'Kettlebell Swings',unit:'kg/Wdh'},
