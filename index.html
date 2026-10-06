@@ -2064,6 +2064,8 @@ function entryHTML(e) {
         ${detail}
         ${e.notes?`<div style="font-size:12px;color:var(--text2);margin-top:6px;font-style:italic">${e.notes}</div>`:''}
       </div>`
+    : e.notes
+    ? `<div style="font-size:12px;color:var(--text2);margin-top:6px;font-style:italic">${e.notes}</div>`
     : '';
   return `<div class="entry-item" style="flex-direction:column;align-items:stretch;cursor:${hasDetail?'pointer':'default'}" ${hasDetail?'onclick="toggleEntryDetail(this)"':''}}>
     <div style="display:flex;justify-content:space-between;align-items:center">
@@ -2113,24 +2115,28 @@ function changeRunType(id) {
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
   overlay.innerHTML = `
-    <div style="background:var(--bg1);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px">
-      <div style="font-weight:700;font-size:16px;margin-bottom:16px">Trainingstyp ändern</div>
-      <select id="run-type-sel" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:15px;margin-bottom:16px">
+    <div style="background:var(--bg1);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px)">
+      <div style="font-weight:700;font-size:16px;margin-bottom:16px">Laufeintrag bearbeiten</div>
+      <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Trainingstyp</label>
+      <select id="run-type-sel" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:15px;margin-bottom:12px">
         ${RUN_OPTS.map(o => `<option value="${o.v}" ${o.v===e.type?'selected':''}>${o.l}</option>`).join('')}
       </select>
+      <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px">Notizen</label>
+      <textarea id="run-notes-inp" rows="4" placeholder="z.B. 1. Intervall 4:10/km, 2. Intervall 4:08/km …" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text1);font-size:14px;resize:none;margin-bottom:16px">${(e.notes||'').replace(/</g,'&lt;')}</textarea>
       <div style="display:flex;gap:8px">
         <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;background:var(--bg3)">Abbrechen</button>
-        <button onclick="applyRunType('${id}', document.getElementById('run-type-sel').value, this)" style="flex:1">Speichern</button>
+        <button onclick="applyRunEdit('${id}', document.getElementById('run-type-sel').value, document.getElementById('run-notes-inp').value, this)" style="flex:1">Speichern</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
 }
 
-function applyRunType(id, type, btn) {
+function applyRunEdit(id, type, notes, btn) {
   btn.closest('div[style*="fixed"]').remove();
   const e = DATA.entries.find(x => x.id === id);
   if (!e) return;
   e.type = type;
+  e.notes = notes.trim();
   e.synced = false;
   save(); trySync();
   renderEintragen();
