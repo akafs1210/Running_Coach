@@ -2882,7 +2882,25 @@ function importStrava(act) {
     return;
   }
 
-  _doImportStrava(act, meta.type);
+  // Alle anderen Typen: Bestätigungs-Dialog
+  const km = act.distance > 0 ? (act.distance/1000).toFixed(1) : '';
+  const mins = Math.round((act.moving_time||0) / 60);
+  const dur = mins >= 60 ? `${Math.floor(mins/60)}h${mins%60}min` : `${mins}min`;
+  const hr = act.average_heartrate ? `ø${Math.round(act.average_heartrate)} bpm` : '';
+  const elev = act.total_elevation_gain ? `↑${Math.round(act.total_elevation_gain)}m` : '';
+  const stats = [km?km+'km':'', dur, hr, elev].filter(Boolean).join(' · ');
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--bg1);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px)">
+      <div style="font-weight:700;font-size:16px;margin-bottom:4px">${meta.emoji} ${act.name}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:16px">${meta.label}${stats?' · '+stats:''}</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;background:var(--bg3)">Abbrechen</button>
+        <button onclick="confirmImportStrava(${JSON.stringify(act).replace(/"/g,'&quot;')}, '${meta.type}', this)" style="flex:1">Importieren →</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
 }
 
 function confirmImportStrava(act, type, btn) {
